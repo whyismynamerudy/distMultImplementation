@@ -11,7 +11,7 @@ from model import DistMult
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 EMBED_DIM = 16
 BATCH_SIZE_TRAIN = 5
-BATCH_SIZE_TEST = 2
+BATCH_SIZE_TEST = 10
 NUM_EPOCHS = 1
 LR = 1e-5
 
@@ -72,7 +72,9 @@ def test(model, test_loader, device):
     num_samples = 0
 
     with torch.no_grad():
+        full_len = len(test_loader)
         for i, (positive, negatives) in enumerate(test_loader):
+            print(f"{i} / {full_len}")
 
             positive.to(device)
             negatives[0].to(device)  # heads
@@ -85,7 +87,7 @@ def test(model, test_loader, device):
             head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
             tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
 
-            mrr += torch.sum(1.0/head_ranks) + torch.sum(1.0/tail_ranks)
+            mrr += torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)
             hit_at_10 += torch.sum(torch.where(head_ranks <= 10, torch.tensor([1.0]), torch.tensor([0.0])))
             num_samples += BATCH_SIZE_TEST
 
@@ -108,11 +110,10 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
     ranking = []
     for i in range(BATCH_SIZE_TEST):
         index = (sorted_entities[i, :] == positive_sample[i][pos_idx]).nonzero()
-        print(index)
-        ranking.append(index.item() + 1)
+        ranking.append(index[0].item() + 1)  # index contains multiple elements since we added the true value w/ super
+                                             # low score
 
     return torch.tensor(ranking)
-
 
 
 def main():
@@ -140,9 +141,6 @@ def main():
 
     train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
     test(model, test_dataloader, DEVICE)
-
-    # plt.plot(train_loss)
-    # plt.show()
 
 
 if __name__ == '__main__':
