@@ -8,8 +8,8 @@ from dataloader import *
 from model import DistMult
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EMBED_DIM = 16
-BATCH_SIZE_TRAIN = 5
+EMBED_DIM = 32
+BATCH_SIZE_TRAIN = 10
 BATCH_SIZE_TEST = 10
 NUM_EPOCHS = 1
 LR = 1e-5
@@ -88,11 +88,11 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
     entities_in_question = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1)
 
     sorted_scores = torch.argsort(scores, descending=True)
-    sorted_entities = torch.gather(entities_in_question, 1, sorted_scores)
+    # sorted_entities = torch.gather(entities_in_question, 1, sorted_scores)
 
     ranking = []
-    for i in range(sorted_entities.size(0)):
-        index = (sorted_entities[i, :] == positive_sample[i][pos_idx]).nonzero()
+    for i in range(sorted_scores.size(0)):
+        index = (sorted_scores[i, :] == positive_sample[i][pos_idx]).nonzero()
         ranking.append(index[0].item() + 1)  # index may contain multiple elements since we added the true value
 
     return torch.tensor(ranking)
