@@ -3,7 +3,6 @@ Script for training DistMult.
 """
 from torch import optim
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 import torch.nn.functional as F
 from dataloader import *
 from model import DistMult
@@ -18,10 +17,12 @@ LR = 1e-5
 
 def train(model, train_dataloader, optimizer, num_epochs, device):
     model.train().to(device)
+    full_len = len(train_dataloader)
 
     for e in range(num_epochs):
-
         for i, (positive, negatives) in enumerate(train_dataloader):
+            print(f"Train: {i} / {full_len-1}")
+
             optimizer.zero_grad()
 
             positive.to(device)
@@ -45,24 +46,6 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
             loss.backward()
             optimizer.step()
 
-            return
-
-            # # batch contains 3 tensors, each of shape [N, 3] where N=BATCH_SIZE
-            # # first tensor contains batched positive samples
-            # # second tensor contains batched neg_head samples
-            # # third tensor contains batched neg_tail samples
-            #
-            # pos_score = model(positive, "positive")
-            # neg_head_score = model((positive, neg_head[:, 0]), "negative-head")
-            # neg_tail_score = model((positive, neg_tail[:, 2]), "negative-tail")
-            #
-            # loss = F.margin_ranking_loss(pos_score,
-            #                              neg_tail_score + neg_head_score,
-            #                              target=torch.ones_like(pos_score),
-            #                              margin=1) / batch[0].size(0)
-            # loss.backward()
-            # optimizer.step()
-
 
 def test(model, test_loader, device):
     model.eval().to(device)
@@ -74,7 +57,7 @@ def test(model, test_loader, device):
     with torch.no_grad():
         full_len = len(test_loader)
         for i, (positive, negatives) in enumerate(test_loader):
-            print(f"{i} / {full_len}")
+            print(f"Test: {i} / {full_len-1}")
 
             positive.to(device)
             negatives[0].to(device)  # heads
@@ -87,9 +70,9 @@ def test(model, test_loader, device):
             head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
             tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
 
-            mrr += torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)
+            mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(torch.where(head_ranks <= 10, torch.tensor([1.0]), torch.tensor([0.0])))
-            num_samples += BATCH_SIZE_TEST
+            num_samples += len(head_ranks)
 
     print("MRR: ", mrr / num_samples)
     print("HIT@10: ", hit_at_10 / num_samples)
@@ -108,16 +91,14 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
     sorted_entities = torch.gather(entities_in_question, 1, sorted_scores)
 
     ranking = []
-    for i in range(BATCH_SIZE_TEST):
+    for i in range(sorted_entities.size(0)):
         index = (sorted_entities[i, :] == positive_sample[i][pos_idx]).nonzero()
-        ranking.append(index[0].item() + 1)  # index contains multiple elements since we added the true value w/ super
-                                             # low score
+        ranking.append(index[0].item() + 1)  # index may contain multiple elements since we added the true value
 
     return torch.tensor(ranking)
 
 
 def main():
-    # controller, handled everything
     entities2id, relations2id = load_dict('./data/FB15k-237/entities.dict'), load_dict(
         './data/FB15k-237/relations.dict')
     train_data, test_data, val_data = (load_triples('./data/FB15k-237/train.txt', entities2id, relations2id),
