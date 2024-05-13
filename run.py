@@ -1,6 +1,8 @@
 """
 Script for training DistMult.
 """
+import argparse
+
 from torch import optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
@@ -79,26 +81,47 @@ def test(model, test_loader, device):
 
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
-    # print(positive_sample.shape, negative_samples.shape, pred_score.shape)
+
     # use filter to eliminate positive triplet from the pred_score
     pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf')))
-    # print(true_score.unsqueeze(1).shape, pred_score.shape)
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1)
 
-    entities_in_question = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1)
-
     sorted_scores = torch.argsort(scores, descending=True)
-    # sorted_entities = torch.gather(entities_in_question, 1, sorted_scores)
 
     ranking = []
     for i in range(sorted_scores.size(0)):
         index = (sorted_scores[i, :] == positive_sample[i][pos_idx]).nonzero()
-        ranking.append(index[0].item() + 1)  # index may contain multiple elements since we added the true value
+        ranking.append(index[0].item() + 1)
 
     return torch.tensor(ranking)
 
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Script for training DistMult.')
+    parser.add_argument('--embed_dim', type=int, default=32,
+                        help='Dimension of entity embeddings (default: 32)')
+    parser.add_argument('--batch_size_train', type=int, default=10,
+                        help='Batch size for training (default: 10)')
+    parser.add_argument('--batch_size_test', type=int, default=10,
+                        help='Batch size for testing (default: 10)')
+    parser.add_argument('--num_epochs', type=int, default=1,
+                        help='Number of epochs for training (default: 1)')
+    parser.add_argument('--lr', type=float, default=1e-5,
+                        help='Learning rate (default: 1e-5)')
+    args = parser.parse_args()
+    return args
+
+
 def main():
+
+    args = parse_arguments()
+
+    EMBED_DIM = args.embed_dim
+    BATCH_SIZE_TRAIN = args.batch_size_train
+    BATCH_SIZE_TEST = args.batch_size_test
+    NUM_EPOCHS = args.num_epochs
+    LR = args.lr
+
     entities2id, relations2id = load_dict('./data/FB15k-237/entities.dict'), load_dict(
         './data/FB15k-237/relations.dict')
     train_data, test_data, val_data = (load_triples('./data/FB15k-237/train.txt', entities2id, relations2id),
