@@ -15,6 +15,7 @@ BATCH_SIZE_TRAIN = 10
 BATCH_SIZE_TEST = 10
 NUM_EPOCHS = 1
 LR = 1e-5
+WEIGHT_DECAY = 0.01
 
 
 def train(model, train_dataloader, optimizer, num_epochs, device):
@@ -108,6 +109,8 @@ def parse_arguments():
                         help='Number of epochs for training (default: 1)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='Learning rate (default: 1e-5)')
+    parser.add_argument('--weight_decay', type=float, default=0.01,
+                        help='Weight decay (default: 0.01)')
     args = parser.parse_args()
     return args
 
@@ -121,6 +124,7 @@ def main():
     BATCH_SIZE_TEST = args.batch_size_test
     NUM_EPOCHS = args.num_epochs
     LR = args.lr
+    WEIGHT_DECAY = args.weight_decay
 
     entities2id, relations2id = load_dict('./data/FB15k-237/entities.dict'), load_dict(
         './data/FB15k-237/relations.dict')
@@ -141,7 +145,7 @@ def main():
                                  shuffle=True)
 
     model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
-    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
     train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
     test(model, test_dataloader, DEVICE)
