@@ -87,7 +87,7 @@ def test(model, test_loader, device):
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
     # use filter to eliminate positive triplet from the pred_score
-    pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf'))).to(DEVICE)
+    pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf')).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1).to(DEVICE)
 
     sorted_scores = torch.argsort(scores, descending=True).to(DEVICE)
@@ -97,7 +97,7 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
         index = (sorted_scores[i, :] == positive_sample[i][pos_idx]).nonzero()
         ranking.append(index[0].item() + 1)
 
-    return torch.tensor(ranking)
+    return torch.tensor(ranking).to(DEVICE)
 
 
 def parse_arguments():
