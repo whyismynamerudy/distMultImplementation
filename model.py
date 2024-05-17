@@ -24,7 +24,7 @@ class DistMult(nn.Module):
         torch.nn.init.xavier_uniform_(self.relation_emb.weight)
 
     def forward(self, sample, mode="train"):
-        sample.to(DEVICE)
+        # sample.to(DEVICE)
         positive_sample, negative_samples = sample
 
         head, relation, tail = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]  # each [B]
