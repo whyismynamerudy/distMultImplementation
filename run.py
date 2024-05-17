@@ -134,14 +134,11 @@ def save_model(model, save_dir, results, hyperparameters, model_name: str):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/{model_name}")
-
-    if not os.path.exists(model_path):
-        os.makedirs(model_path)
+    model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_{model_name}")
 
     torch.save(model.state_dict(), model_path)
 
-    results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/results.txt")
+    results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_results.txt")
     with open(results_path, 'w') as f:
         f.write(f"MRR: {results[0]}\n")
         f.write(f"HIT@10: {results[1]}\n")
