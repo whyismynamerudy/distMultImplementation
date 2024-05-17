@@ -42,6 +42,8 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
                                           target=torch.ones_like(true_score),
                                           margin=1)
 
+            loss += 0.0001 * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
+
             epoch_loss += loss.item()
             num_samples += len(positive)
             loss = loss / len(positive)
@@ -237,7 +239,7 @@ def main():
 
     else:
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
-        optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        optimizer = optim.Adam(model.parameters(), lr=LR)
 
         train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
         mrr, hit_at_10 = test(model, val_dataloader, DEVICE)
