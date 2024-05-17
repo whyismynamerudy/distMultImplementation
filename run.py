@@ -135,6 +135,10 @@ def save_model(model, save_dir, results, hyperparameters, model_name: str):
         os.makedirs(save_dir)
 
     model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/{model_name}")
+
+    if not os.path.exists(model_path):
+        os.makedirs(model_path)
+
     torch.save(model.state_dict(), model_path)
 
     results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/results.txt")
@@ -243,7 +247,7 @@ def main():
 
         if args.save_dir:
             save_model(model, args.save_dir, (mrr, hit_at_10),
-                       {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY},
+                       {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY, 'num_epochs': NUM_EPOCHS},
                        "best_model_from_arguments.pth")
 
         if args.do_test:
