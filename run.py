@@ -90,11 +90,14 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
     pred_score = torch.where(filter.bool().to(DEVICE), pred_score, torch.tensor(float('-inf')).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1).to(DEVICE)
 
+    all_samples = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1).to(DEVICE)
+
     sorted_scores = torch.argsort(scores, descending=True).to(DEVICE)
+    sorted_samples = torch.gather(all_samples, 1, sorted_scores)
 
     ranking = []
     for i in range(sorted_scores.size(0)):
-        index = (sorted_scores[i, :] == positive_sample[i][pos_idx]).nonzero()
+        index = (sorted_samples[i, :] == positive_sample[i][pos_idx]).nonzero()
         ranking.append(index[0].item() + 1)
 
     return torch.tensor(ranking).to(DEVICE)
@@ -131,10 +134,10 @@ def save_model(model, save_dir, results, hyperparameters, model_name: str):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_{model_name}")
+    model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/{model_name}")
     torch.save(model.state_dict(), model_path)
 
-    results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_results.txt")
+    results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}/results.txt")
     with open(results_path, 'w') as f:
         f.write(f"MRR: {results[0]}\n")
         f.write(f"HIT@10: {results[1]}\n")
