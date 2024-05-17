@@ -74,7 +74,7 @@ def test(model, test_loader, device):
             tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
 
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
-            hit_at_10 += torch.sum(torch.where(head_ranks <= 10, torch.tensor([1.0]), torch.tensor([0.0])))
+            hit_at_10 += torch.sum(torch.where(head_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device)))
             num_samples += len(head_ranks)
 
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
@@ -87,7 +87,7 @@ def test(model, test_loader, device):
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
     # use filter to eliminate positive triplet from the pred_score
-    pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf')).to(DEVICE)).to(DEVICE)
+    pred_score = torch.where(filter.bool().to(DEVICE), pred_score, torch.tensor(float('-inf')).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1).to(DEVICE)
 
     sorted_scores = torch.argsort(scores, descending=True).to(DEVICE)
