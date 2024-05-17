@@ -2,30 +2,22 @@
 Script for training DistMult.
 """
 import argparse
-
+import os
 from torch import optim
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+from tqdm import tqdm
 from dataloader import *
 from model import DistMult
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EMBED_DIM = 32
-BATCH_SIZE_TRAIN = 10
-BATCH_SIZE_TEST = 10
-NUM_EPOCHS = 1
-LR = 1e-5
-WEIGHT_DECAY = 0.01
 
 
 def train(model, train_dataloader, optimizer, num_epochs, device):
     model.train().to(device)
-    full_len = len(train_dataloader)
 
     for e in range(num_epochs):
-        for i, (positive, negatives) in enumerate(train_dataloader):
-            print(f"Train: {i} / {full_len-1}")
-
+        for (positive, negatives) in tqdm(train_dataloader):
             optimizer.zero_grad()
 
             positive.to(device)
@@ -44,7 +36,7 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
                                           target=torch.ones_like(true_score),
                                           margin=1)
 
-            loss = loss / BATCH_SIZE_TRAIN
+            loss = loss / len(positive)
 
             loss.backward()
             optimizer.step()
@@ -58,10 +50,7 @@ def test(model, test_loader, device):
     num_samples = 0
 
     with torch.no_grad():
-        full_len = len(test_loader)
-        for i, (positive, negatives) in enumerate(test_loader):
-            print(f"Test: {i} / {full_len-1}")
-
+        for (positive, negatives) in tqdm(test_loader):
             positive.to(device)
             negatives[0].to(device)  # heads
             negatives[1].to(device)  # tails
@@ -77,12 +66,15 @@ def test(model, test_loader, device):
             hit_at_10 += torch.sum(torch.where(head_ranks <= 10, torch.tensor([1.0]), torch.tensor([0.0])))
             num_samples += len(head_ranks)
 
-    print("MRR: ", mrr / num_samples)
-    print("HIT@10: ", hit_at_10 / num_samples)
+    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+
+    print("MRR: ", mrr)
+    print("HIT@10: ", hit_at_10)
+
+    return mrr, hit_at_10
 
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
-
     # use filter to eliminate positive triplet from the pred_score
     pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf')))
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1)
@@ -111,13 +103,73 @@ def parse_arguments():
                         help='Learning rate (default: 1e-5)')
     parser.add_argument('--weight_decay', type=float, default=0.01,
                         help='Weight decay (default: 0.01)')
+    parser.add_argument('--save_dir', type=str, default='models',
+                        help='Directory to save trained models (default: models)')
+    parser.add_argument('--do_test', action='store_true', help='Test the model on the test set after training')
+    parser.add_argument('--do_hyperparameter_search', action='store_true', help='Perform hyperparameter search')
+    parser.add_argument('--pretrained_model_path', type=str, default='', help='Path to pretrained model')
     args = parser.parse_args()
+
+    if args.pretrained_model_path and not args.do_test:
+        parser.error("When providing a pretrained model path, please use the '--do_test' flag to test the model.")
+
     return args
 
 
-def main():
+def save_model(model, save_dir, results, hyperparameters, model_name: str):
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
+    model_path = os.path.join(save_dir, model_name)
+    torch.save(model.state_dict(), model_path)
+
+    results_path = os.path.join(save_dir, 'results.txt')
+    with open(results_path, 'w') as f:
+        f.write(f"MRR: {results[0]}\n")
+        f.write(f"HIT@10: {results[1]}\n")
+        f.write(f"Hyperparameters:\n")
+        for key, value in hyperparameters.items():
+            f.write(f"{key}: {value}\n")
+        f.write("\n *** \n")
+
+
+def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relations2id, save_dir,
+                          mrr_or_hit=0):
+    # mrr_or_hit is idx for the results returned by test func
+    best_hyperparameters = None
+    best_result = 0.0
+
+    for num_epochs in [16, 32, 64, 128]:
+        for embed_dim in [32, 64, 128, 256]:
+            for lr in [1e-3, 1e-4, 1e-5]:
+                for weight_decay in [0.001, 0.01, 0.1]:
+                    model = DistMult(len(entities2id), len(relations2id), embed_dim)
+                    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+                    for epoch in range(num_epochs):
+                        train(model, train_dataloader, optimizer, 1, DEVICE)
+                        results = test(model, val_dataloader, DEVICE)
+
+                        if results[mrr_or_hit] > best_result:
+                            best_result = results[mrr_or_hit]
+                            best_hyperparameters = {
+                                'embed_dim': embed_dim,
+                                'lr': lr,
+                                'weight_decay': weight_decay,
+                                'num_epochs': num_epochs
+                            }
+                            if save_dir:
+                                save_model(model, save_dir, results, best_hyperparameters, "best_model_hyperparam.pth")
+
+    print("Best hyperparameters:", best_hyperparameters)
+    return best_hyperparameters
+
+
+def main():
     args = parse_arguments()
+
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
 
     EMBED_DIM = args.embed_dim
     BATCH_SIZE_TRAIN = args.batch_size_train
@@ -138,17 +190,57 @@ def main():
                                   batch_size=BATCH_SIZE_TRAIN,
                                   shuffle=True)
 
+    val_data = TestDataLoader(val_data, len(entities2id))
+    val_dataloader = DataLoader(val_data,
+                                collate_fn=TestDataLoader.collate_fn,
+                                batch_size=BATCH_SIZE_TEST,
+                                shuffle=True)
+
     test_data = TestDataLoader(test_data, len(entities2id))
     test_dataloader = DataLoader(test_data,
                                  collate_fn=TestDataLoader.collate_fn,
                                  batch_size=BATCH_SIZE_TEST,
                                  shuffle=True)
 
-    model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
-    optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    if args.pretrained_model_path:
+        if not args.do_test:
+            print("Error: When providing a pretrained model path, please use the '--do_test' flag to test the model.")
+            return
 
-    train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
-    test(model, test_dataloader, DEVICE)
+        model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
+        model.load_state_dict(torch.load(args.pretrained_model_path))
+        test(model, test_dataloader, DEVICE)
+        return
+
+    if args.do_hyperparameter_search:
+        best_hyperparameters = hyperparameter_search(train_dataloader, val_dataloader, entities2id, relations2id,
+                                                     args.save_dir, 0)
+
+        if args.do_test:
+            model = DistMult(len(entities2id), len(relations2id), best_hyperparameters['embed_dim'])
+            optimizer = optim.Adam(model.parameters(), lr=best_hyperparameters['lr'],
+                                   weight_decay=best_hyperparameters['weight_decay'])
+            train(model, train_dataloader, optimizer, best_hyperparameters['num_epochs'], DEVICE)
+            mrr, hit_at_10 = test(model, test_dataloader, DEVICE)
+            save_model(model, args.save_dir, (mrr, hit_at_10), best_hyperparameters, "best_model_hyperparam_test.pth")
+    else:
+        model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
+        optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+        best_mrr = -1
+        for epoch in range(NUM_EPOCHS):
+            train(model, train_dataloader, optimizer, 1, DEVICE)
+            mrr, hit_at_10 = test(model, val_dataloader, DEVICE)
+
+            if mrr > best_mrr:
+                best_mrr = mrr
+                if args.save_dir:
+                    save_model(model, args.save_dir, (mrr, hit_at_10),
+                               {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY},
+                               "best_model_from_arguments.pth")
+
+        if args.do_test:
+            test(model, test_dataloader, DEVICE)
 
 
 if __name__ == '__main__':
