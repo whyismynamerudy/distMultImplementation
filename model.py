@@ -5,6 +5,8 @@ DistMult implementation.
 import torch
 import torch.nn as nn
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class DistMult(nn.Module):
     def __init__(self, num_entities, num_relations, embed_dim):
@@ -22,12 +24,13 @@ class DistMult(nn.Module):
         torch.nn.init.xavier_uniform_(self.relation_emb.weight)
 
     def forward(self, sample, mode="train"):
+        sample.to(DEVICE)
         positive_sample, negative_samples = sample
 
         head, relation, tail = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]  # each [B]
-        head_emb = self.entity_emb(head)
-        relation_emb = self.relation_emb(relation)
-        tail_emb = self.entity_emb(tail)
+        head_emb = self.entity_emb(head).to(DEVICE)
+        relation_emb = self.relation_emb(relation).to(DEVICE)
+        tail_emb = self.entity_emb(tail).to(DEVICE)
 
         # print("relation and tail", relation.shape, tail.shape)
 

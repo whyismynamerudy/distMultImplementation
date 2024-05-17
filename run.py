@@ -246,5 +246,5 @@ def main():
 
 
 if __name__ == '__main__':
-    print("Running at ", CONSTANT_DATETIME)
+    print("Running at {} on {}".format(CONSTANT_DATETIME, "CUDA" if torch.cuda.is_available() else "CPU"))
     main()
