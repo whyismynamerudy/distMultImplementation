@@ -9,14 +9,19 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from dataloader import *
 from model import DistMult
+import datetime
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+CONSTANT_DATETIME = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
 def train(model, train_dataloader, optimizer, num_epochs, device):
     model.train().to(device)
 
     for e in range(num_epochs):
+        epoch_loss = 0
+        print(f"Epoch [{e + 1}/{num_epochs}]")
+
         for (positive, negatives) in tqdm(train_dataloader):
             optimizer.zero_grad()
 
@@ -40,6 +45,10 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
 
             loss.backward()
             optimizer.step()
+
+            epoch_loss += loss.item()
+
+        print(f"Loss: {epoch_loss / num_epochs}")
 
 
 def test(model, test_loader, device):
@@ -76,10 +85,10 @@ def test(model, test_loader, device):
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
     # use filter to eliminate positive triplet from the pred_score
-    pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf')))
-    scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1)
+    pred_score = torch.where(filter.bool(), pred_score, torch.tensor(float('-inf'))).to(DEVICE)
+    scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1).to(DEVICE)
 
-    sorted_scores = torch.argsort(scores, descending=True)
+    sorted_scores = torch.argsort(scores, descending=True).to(DEVICE)
 
     ranking = []
     for i in range(sorted_scores.size(0)):
@@ -120,10 +129,10 @@ def save_model(model, save_dir, results, hyperparameters, model_name: str):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    model_path = os.path.join(save_dir, model_name)
+    model_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_{model_name}")
     torch.save(model.state_dict(), model_path)
 
-    results_path = os.path.join(save_dir, 'results.txt')
+    results_path = os.path.join(save_dir, f"{CONSTANT_DATETIME}_results.txt")
     with open(results_path, 'w') as f:
         f.write(f"MRR: {results[0]}\n")
         f.write(f"HIT@10: {results[1]}\n")
@@ -138,6 +147,7 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
     # mrr_or_hit is idx for the results returned by test func
     best_hyperparameters = None
     best_result = 0.0
+    best_model = None
 
     for num_epochs in [16, 32, 64, 128]:
         for embed_dim in [32, 64, 128, 256]:
@@ -157,11 +167,12 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                             'weight_decay': weight_decay,
                             'num_epochs': num_epochs
                         }
+                        best_model = model
                         if save_dir:
                             save_model(model, save_dir, results, best_hyperparameters, "best_model_hyperparam.pth")
 
     print("Best hyperparameters:", best_hyperparameters)
-    return best_hyperparameters
+    return best_hyperparameters, best_model
 
 
 def main():
@@ -212,13 +223,11 @@ def main():
         return
 
     if args.do_hyperparameter_search:
-        best_hyperparameters = hyperparameter_search(train_dataloader, val_dataloader, entities2id, relations2id,
-                                                     args.save_dir, 0)
+        best_hyperparameters, best_model = hyperparameter_search(train_dataloader, val_dataloader, entities2id,
+                                                                 relations2id, args.save_dir, 0)
 
         if args.do_test:
-            model = DistMult(len(entities2id), len(relations2id), best_hyperparameters['embed_dim'])
-            model.load_state_dict(torch.load("./models/best_model_hyperparam.pth"))
-            test(model, test_dataloader, DEVICE)
+            test(best_model, test_dataloader, DEVICE)
 
     else:
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
