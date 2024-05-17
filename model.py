@@ -27,16 +27,16 @@ class DistMult(nn.Module):
         # sample.to(DEVICE)
         positive_sample, negative_samples = sample
 
-        head, relation, tail = positive_sample[:, 0], positive_sample[:, 1], positive_sample[:, 2]  # each [B]
-        head_emb = self.entity_emb(head).to(DEVICE)
-        relation_emb = self.relation_emb(relation).to(DEVICE)
-        tail_emb = self.entity_emb(tail).to(DEVICE)
+        head, relation, tail = positive_sample[:, 0].to(DEVICE), positive_sample[:, 1].to(DEVICE), positive_sample[:, 2].to(DEVICE)  # each [B]
+        head_emb = self.entity_emb(head)
+        relation_emb = self.relation_emb(relation)
+        tail_emb = self.entity_emb(tail)
 
         # print("relation and tail", relation.shape, tail.shape)
 
         true_score = self._get_score(head_emb, relation_emb, tail_emb)
 
-        negative_heads, negative_tails = negative_samples  # ensure it is a tuple
+        negative_heads, negative_tails = (negative_samples[0].to(DEVICE), negative_samples[1].to(DEVICE))  # ensure it is a tuple
         # print("neg head and neg tail", negative_heads.shape, negative_tails.shape)
 
         if mode == "test":
