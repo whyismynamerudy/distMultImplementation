@@ -64,59 +64,6 @@ class DistMult(nn.Module):
 
         return true_score, head_pred_score, tail_pred_score
 
-    # def forward(self, idx, type):
-    #     """
-    #     Forward pass of the model.
-    #
-    #     :param idx: Tensor of indices. Shape depends on type.
-    #     :param type: Whether it is a positive, negative-head, or negative-tail sample.
-    #     :return: Tensor containing the score of the triplets, shape [N, 1].
-    #     """
-    #     assert (type in {"positive", "negative-head", "negative-tail"})
-    #
-    #     if type == "positive":
-    #         # shape of idx would be [N, 3], where N is batch size
-    #         head, tail = self.entity_emb(idx[:, 0]), self.entity_emb(idx[:, 2])  # size [N, d]
-    #         relation = self.relation_emb(idx[:, 1])  # [N, d]
-    #
-    #         # each of head, tail, relation is of shape [N, d]
-    #
-    #     elif type == "negative-head":
-    #         # idx contains both positive samples and negative-head samples
-    #         # positive samples of shape [N, 3]
-    #         # neg-head samples of shape [N]
-    #
-    #         pos_sample, neg_heads = idx
-    #         head = self.entity_emb(neg_heads)
-    #
-    #         relation = self.relation_emb(pos_sample[:, 1])
-    #         tail = self.entity_emb(pos_sample[:, 2])
-    #
-    #         # print("neg_head: ", neg_heads.shape)
-    #         # print("head: ", head.shape)
-    #         # print("pos_sample[:, 1]: ", pos_sample[:, 1].shape)
-    #         # print("relation: ", relation.shape)
-    #         # print("pos_sample[:, 2]: ", pos_sample[:, 2].shape)
-    #         # print("tail: ", tail.shape)
-    #
-    #     elif type == "negative-tail":
-    #         # idx contains both positive and negative-tail samples
-    #         # positive samples of shape [N, 3]
-    #         # neg-tail samples of shape [N]
-    #
-    #         pos_sample, neg_tails = idx
-    #         relation = self.relation_emb(pos_sample[:, 1])
-    #         head = self.entity_emb(pos_sample[:, 0])
-    #
-    #         tail = self.entity_emb(neg_tails)
-    #
-    #     else:
-    #         return ValueError("Unrecognized input.")
-    #
-    #     score = torch.sum(head * relation * tail, dim=0, keepdim=True)
-    #     print(score.shape)
-    #     return score
-
     def _get_score(self, head, relation, tail):
         score = (head * relation * tail).sum(dim=-1)    # shape [B] or [B, K] depending on where it is called
         return score

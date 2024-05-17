@@ -146,20 +146,19 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                     model = DistMult(len(entities2id), len(relations2id), embed_dim)
                     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-                    for epoch in range(num_epochs):
-                        train(model, train_dataloader, optimizer, 1, DEVICE)
-                        results = test(model, val_dataloader, DEVICE)
+                    train(model, train_dataloader, optimizer, num_epochs, DEVICE)
+                    results = test(model, val_dataloader, DEVICE)
 
-                        if results[mrr_or_hit] > best_result:
-                            best_result = results[mrr_or_hit]
-                            best_hyperparameters = {
-                                'embed_dim': embed_dim,
-                                'lr': lr,
-                                'weight_decay': weight_decay,
-                                'num_epochs': num_epochs
-                            }
-                            if save_dir:
-                                save_model(model, save_dir, results, best_hyperparameters, "best_model_hyperparam.pth")
+                    if results[mrr_or_hit] > best_result:
+                        best_result = results[mrr_or_hit]
+                        best_hyperparameters = {
+                            'embed_dim': embed_dim,
+                            'lr': lr,
+                            'weight_decay': weight_decay,
+                            'num_epochs': num_epochs
+                        }
+                        if save_dir:
+                            save_model(model, save_dir, results, best_hyperparameters, "best_model_hyperparam.pth")
 
     print("Best hyperparameters:", best_hyperparameters)
     return best_hyperparameters
@@ -218,26 +217,20 @@ def main():
 
         if args.do_test:
             model = DistMult(len(entities2id), len(relations2id), best_hyperparameters['embed_dim'])
-            optimizer = optim.Adam(model.parameters(), lr=best_hyperparameters['lr'],
-                                   weight_decay=best_hyperparameters['weight_decay'])
-            train(model, train_dataloader, optimizer, best_hyperparameters['num_epochs'], DEVICE)
-            mrr, hit_at_10 = test(model, test_dataloader, DEVICE)
-            save_model(model, args.save_dir, (mrr, hit_at_10), best_hyperparameters, "best_model_hyperparam_test.pth")
+            model.load_state_dict(torch.load("./models/best_model_hyperparam.pth"))
+            test(model, test_dataloader, DEVICE)
+
     else:
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
         optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
-        best_mrr = -1
-        for epoch in range(NUM_EPOCHS):
-            train(model, train_dataloader, optimizer, 1, DEVICE)
-            mrr, hit_at_10 = test(model, val_dataloader, DEVICE)
+        train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
+        mrr, hit_at_10 = test(model, val_dataloader, DEVICE)
 
-            if mrr > best_mrr:
-                best_mrr = mrr
-                if args.save_dir:
-                    save_model(model, args.save_dir, (mrr, hit_at_10),
-                               {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY},
-                               "best_model_from_arguments.pth")
+        if args.save_dir:
+            save_model(model, args.save_dir, (mrr, hit_at_10),
+                       {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY},
+                       "best_model_from_arguments.pth")
 
         if args.do_test:
             test(model, test_dataloader, DEVICE)
