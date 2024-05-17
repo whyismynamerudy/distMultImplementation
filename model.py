@@ -42,8 +42,9 @@ class DistMult(nn.Module):
         if mode == "test":
             # negative_heads, negative_tails of size [B, K]
             neg_batch, neg_num_samples = negative_heads.shape
-            relation = relation.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples)
-            tail = tail.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples)
+            neg_batch.to(DEVICE)
+            relation = relation.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
+            tail = tail.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
 
             relation_emb = self.relation_emb(relation)
             tail_emb = self.entity_emb(tail)

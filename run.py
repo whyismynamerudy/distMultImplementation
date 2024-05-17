@@ -17,13 +17,14 @@ CONSTANT_DATETIME = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 def train(model, train_dataloader, optimizer, num_epochs, device):
     model.train().to(device)
+    optimizer.zero_grad()
 
     for e in range(num_epochs):
         epoch_loss = 0
+        num_samples = 0
         print(f"Epoch [{e + 1}/{num_epochs}]")
 
         for (positive, negatives) in tqdm(train_dataloader):
-            optimizer.zero_grad()
 
             positive.to(device)
             negatives[0].to(device)
@@ -41,14 +42,15 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
                                           target=torch.ones_like(true_score),
                                           margin=1)
 
+            epoch_loss += loss.item()
+            num_samples += len(positive)
             loss = loss / len(positive)
 
             loss.backward()
             optimizer.step()
+            optimizer.zero_grad()
 
-            epoch_loss += loss.item()
-
-        print(f"Loss: {epoch_loss / num_epochs}")
+        print(f"Loss: {epoch_loss / num_samples}")
 
 
 def test(model, test_loader, device):
