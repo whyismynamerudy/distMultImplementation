@@ -92,14 +92,14 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
     pred_score = torch.where(filter.bool().to(DEVICE), pred_score, torch.tensor(float('-inf')).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score.unsqueeze(1), pred_score), dim=1).to(DEVICE)
 
-    all_samples = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1).to(DEVICE)
+    # all_samples = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1).to(DEVICE)
 
     sorted_scores = torch.argsort(scores, descending=True).to(DEVICE)
-    sorted_samples = torch.gather(all_samples, 1, sorted_scores)
+    # sorted_samples = torch.gather(all_samples, 1, sorted_scores)
 
     ranking = []
     for i in range(sorted_scores.size(0)):
-        index = (sorted_samples[i, :] == positive_sample[i][pos_idx]).nonzero()
+        index = (sorted_scores[i, :] == positive_sample[i][pos_idx]).nonzero()
         ranking.append(index[0].item() + 1)
 
     return torch.tensor(ranking).to(DEVICE)
@@ -117,8 +117,6 @@ def parse_arguments():
                         help='Number of epochs for training (default: 1)')
     parser.add_argument('--lr', type=float, default=1e-5,
                         help='Learning rate (default: 1e-5)')
-    parser.add_argument('--weight_decay', type=float, default=0.01,
-                        help='Weight decay (default: 0.01)')
     parser.add_argument('--save_dir', type=str, default='models',
                         help='Directory to save trained models (default: models)')
     parser.add_argument('--do_test', action='store_true', help='Test the model on the test set after training')
@@ -157,27 +155,25 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
     best_result = 0.0
     best_model = None
 
-    for num_epochs in [16, 32, 64, 128]:
-        for embed_dim in [32, 64, 128, 256]:
+    for num_epochs in [64, 128, 256, 512]:
+        for embed_dim in [64, 128, 256]:
             for lr in [1e-3, 1e-4, 1e-5]:
-                for weight_decay in [0.001, 0.01, 0.1]:
-                    model = DistMult(len(entities2id), len(relations2id), embed_dim)
-                    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+                model = DistMult(len(entities2id), len(relations2id), embed_dim)
+                optimizer = optim.Adam(model.parameters(), lr=lr)
 
-                    train(model, train_dataloader, optimizer, num_epochs, DEVICE)
-                    results = test(model, val_dataloader, DEVICE)
+                train(model, train_dataloader, optimizer, num_epochs, DEVICE)
+                results = test(model, val_dataloader, DEVICE)
 
-                    if results[mrr_or_hit] > best_result:
-                        best_result = results[mrr_or_hit]
-                        best_hyperparameters = {
-                            'embed_dim': embed_dim,
-                            'lr': lr,
-                            'weight_decay': weight_decay,
-                            'num_epochs': num_epochs
-                        }
-                        best_model = model
-                        if save_dir:
-                            save_model(model, save_dir, results, best_hyperparameters, "best_model_hyperparam.pth")
+                if results[mrr_or_hit] > best_result:
+                    best_result = results[mrr_or_hit]
+                    best_hyperparameters = {
+                        'embed_dim': embed_dim,
+                        'lr': lr,
+                        'num_epochs': num_epochs
+                    }
+                    best_model = model
+                    if save_dir:
+                        save_model(model, save_dir, results, best_hyperparameters, "best_model.pth")
 
     print("Best hyperparameters:", best_hyperparameters)
     return best_hyperparameters, best_model
@@ -194,7 +190,6 @@ def main():
     BATCH_SIZE_TEST = args.batch_size_test
     NUM_EPOCHS = args.num_epochs
     LR = args.lr
-    WEIGHT_DECAY = args.weight_decay
 
     entities2id, relations2id = load_dict('./data/FB15k-237/entities.dict'), load_dict(
         './data/FB15k-237/relations.dict')
@@ -246,8 +241,8 @@ def main():
 
         if args.save_dir:
             save_model(model, args.save_dir, (mrr, hit_at_10),
-                       {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY, 'num_epochs': NUM_EPOCHS},
-                       "best_model_from_arguments.pth")
+                       {'embed_dim': EMBED_DIM, 'lr': LR, 'num_epochs': NUM_EPOCHS},
+                       "model.pth")
 
         if args.do_test:
             test(model, test_dataloader, DEVICE)
