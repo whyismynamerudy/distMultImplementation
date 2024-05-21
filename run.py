@@ -34,7 +34,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             negatives[0].to(DEVICE)
             negatives[1].to(DEVICE)
 
-            true_score, head_pred_score, tail_pred_score = model((positive, negatives))
+            true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
             loss = (F.margin_ranking_loss(true_score,
                                           head_pred_score,
@@ -126,7 +126,7 @@ def test(model, test_loader):
             negatives[2].to(DEVICE)  # filter heads
             negatives[3].to(DEVICE)  # filter tails
 
-            true_score, head_pred_score, tail_pred_score = model((positive, negatives))
+            true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
             head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
             tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
