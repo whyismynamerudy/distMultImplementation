@@ -17,7 +17,7 @@ CONSTANT_DATETIME = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # include loss for validation interval / epoch within the range and include those as well
 # include validation MRR, HIT@10 as well during interval
-def train(model, train_dataloader, optimizer, num_epochs, device):
+def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, device):
     model.train().to(device)
     optimizer.zero_grad()
 
@@ -61,6 +61,55 @@ def train(model, train_dataloader, optimizer, num_epochs, device):
 
         if e % 5 == 0:
             train_losses.append(epoch_loss / num_samples)
+            val_loss, val_mrr_score, val_hit_score = validate(model, valid_dataloader, device)
+            val_losses.append(val_loss)
+            val_mrr.append(val_mrr_score)
+            val_hit_at_10.append(val_hit_score)
+            print(f"Validation Loss: {val_loss}, MRR: {val_mrr_score}, Hit@10: {val_hit_score}")
+
+    return train_losses, val_losses, val_mrr, val_hit_at_10
+
+
+def validate(model, dataloader, device):
+    model.eval().to(device)
+    total_loss = 0
+    num_samples = 0
+
+    mrr = 0
+    hit_at_10 = 0
+
+    with torch.no_grad():
+        for (positive, negatives) in tqdm(dataloader):
+            positive.to(device)
+            negatives[0].to(device)
+            negatives[1].to(device)
+            negatives[2].to(device)
+            negatives[3].to(device)
+
+            true_score, head_pred_score, tail_pred_score = model((positive, (negatives[0], negatives[1])), mode='test')
+
+            head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
+            tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
+
+            mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
+            hit_at_10 += torch.sum(
+                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device)))
+            num_samples += len(head_ranks)
+
+            loss = F.margin_ranking_loss(true_score,
+                                         head_pred_score,
+                                         target=torch.ones_like(true_score),
+                                         margin=1)
+            loss += F.margin_ranking_loss(true_score,
+                                          tail_pred_score,
+                                          target=torch.ones_like(true_score),
+                                          margin=1)
+            total_loss += loss.item()
+
+    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+    avg_loss = total_loss / num_samples
+
+    return avg_loss, mrr, hit_at_10
 
 
 def test(model, test_loader, device):
@@ -172,7 +221,7 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                     model = DistMult(len(entities2id), len(relations2id), embed_dim)
                     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-                    train(model, train_dataloader, optimizer, num_epochs, DEVICE)
+                    train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer, num_epochs, DEVICE)
                     results = test(model, val_dataloader, DEVICE)
 
                     if results[mrr_or_hit] > best_result:
@@ -184,6 +233,10 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                             'num_epochs': num_epochs,
                             'batch_train': batch_train,
                             'batch_test': batch_test,
+                            'train_losses': train_losses,
+                            'val_losses': val_losses,
+                            'val_mrr': val_mrr,
+                            'val_hit_at_10': val_hit_at_10,
                         }
                         best_model = model
                         if save_dir:
@@ -252,13 +305,23 @@ def main():
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
         optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
-        train(model, train_dataloader, optimizer, NUM_EPOCHS, DEVICE)
+        train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer, NUM_EPOCHS, DEVICE)
         mrr, hit_at_10 = test(model, val_dataloader, DEVICE)
 
         if args.save_dir:
             save_model(model, args.save_dir, (mrr, hit_at_10),
-                       {'embed_dim': EMBED_DIM, 'lr': LR, 'weight_decay': WEIGHT_DECAY, 'num_epochs': NUM_EPOCHS,
-                        'batch_train': BATCH_SIZE_TRAIN, 'batch_test': BATCH_SIZE_TEST},
+                       {
+                           'embed_dim': EMBED_DIM,
+                           'lr': LR,
+                           'weight_decay': WEIGHT_DECAY,
+                           'num_epochs': NUM_EPOCHS,
+                           'batch_train': BATCH_SIZE_TRAIN,
+                           'batch_test': BATCH_SIZE_TEST,
+                           'train_losses': train_losses,
+                           'val_losses': val_losses,
+                           'val_mrr': val_mrr,
+                           'val_hit_at_10': val_hit_at_10,
+                       },
                        "model.pth")
 
         if args.do_test:
