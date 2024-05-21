@@ -15,6 +15,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONSTANT_DATETIME = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
+def model_loss(true_score, pred_score):
+    return (-true_score + torch.log((torch.exp(pred_score).sum()))).sum()
+
+
 # include loss for validation interval / epoch within the range and include those as well
 # include validation MRR, HIT@10 as well during interval
 def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lambda_reg):
@@ -36,19 +40,21 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
 
             true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
-            loss = (F.margin_ranking_loss(true_score,
-                                          head_pred_score,
-                                          target=torch.ones_like(true_score),
-                                          margin=1) +
-                    F.margin_ranking_loss(true_score,
-                                          tail_pred_score,
-                                          target=torch.ones_like(true_score),
-                                          margin=1))
+            loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
+
+            # loss = (F.margin_ranking_loss(true_score,
+            #                               head_pred_score,
+            #                               target=torch.ones_like(true_score),
+            #                               margin=1) +
+            #         F.margin_ranking_loss(true_score,
+            #                               tail_pred_score,
+            #                               target=torch.ones_like(true_score),
+            #                               margin=1))
 
             reg = lambda_reg * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
             batch_size = true_score.size(0)
-            epoch_loss += loss.item()
+            epoch_loss += loss
             num_samples += batch_size
 
             loss = loss / batch_size + reg
@@ -96,15 +102,17 @@ def validate(model, dataloader):
                 torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
             num_samples += len(head_ranks)
 
-            loss = F.margin_ranking_loss(true_score,
-                                         head_pred_score,
-                                         target=torch.ones_like(true_score),
-                                         margin=1)
-            loss += F.margin_ranking_loss(true_score,
-                                          tail_pred_score,
-                                          target=torch.ones_like(true_score),
-                                          margin=1)
-            total_loss += loss.item()
+            loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
+
+            # loss = F.margin_ranking_loss(true_score,
+            #                              head_pred_score,
+            #                              target=torch.ones_like(true_score),
+            #                              margin=1)
+            # loss += F.margin_ranking_loss(true_score,
+            #                               tail_pred_score,
+            #                               target=torch.ones_like(true_score),
+            #                               margin=1)
+            total_loss += loss
 
     avg_loss = total_loss / num_samples
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
