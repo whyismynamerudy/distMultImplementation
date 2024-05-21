@@ -22,9 +22,9 @@ def get_true_head_and_tail(triples):
         true_head[(relation, tail)].append(head)
 
     for relation, tail in tqdm(true_head):
-        true_head[(relation, tail)] = np.array(list(set(true_head[(relation, tail)])))
+        true_head[(relation, tail)] = torch.tensor(list(set(true_head[(relation, tail)])))
     for head, relation in tqdm(true_tail):
-        true_tail[(head, relation)] = np.array(list(set(true_tail[(head, relation)])))
+        true_tail[(head, relation)] = torch.tensor(list(set(true_tail[(head, relation)])))
 
     print("Got true heads and tails.")
     return true_head, true_tail
@@ -101,15 +101,18 @@ class TrainDataLoader(Dataset):
 
     def corrupt_sample(self, positive_sample, is_head):
         head, relation, tail = positive_sample
-        all_entities = np.arange(self.num_entities)  # -1?
+        all_entities = torch.arange(self.num_entities)  # -1?
 
         if is_head:
-            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+            mask = ~torch.isin(all_entities, self.true_head[(relation, tail)])
         else:
-            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+            mask = ~torch.isin(all_entities, self.true_tail[(head, relation)])
 
-        negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
-                                            replace=False)
+        negative_samples = all_entities[mask]
+        if len(negative_samples) > self.neg_sample_size:
+            negative_samples = negative_samples[torch.randperm(len(negative_samples))[:self.neg_sample_size]]
+        # negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
+        #                                     replace=False)
 
 
         # print("in train")
@@ -219,15 +222,20 @@ class TestDataLoader(Dataset):
         # filtr = tmp[:, 0].float()
         # negative = tmp[:, 1]
 
-        all_entities = list(range(self.num_entities))
+        # all_entities = list(range(self.num_entities))
+        all_entities = torch.arange(self.num_entities, dtype=torch.long)
 
         if is_head:
-            all_entities.pop(head)
-            all_entities = np.array(all_entities)
-            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+            all_entities = all_entities[all_entities != head]
+            mask = ~torch.isin(all_entities, self.true_head[(relation, tail)])
+            # all_entities.pop(head)
+            # all_entities = np.array(all_entities)
+            # mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
         else:
-            all_entities.pop(tail)
-            all_entities = np.array(all_entities)
-            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+            all_entities = all_entities[all_entities != tail]
+            mask = ~torch.isin(all_entities, self.true_tail[(head, relation)])
+            # all_entities.pop(tail)
+            # all_entities = np.array(all_entities)
+            # mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
 
         return all_entities, mask
