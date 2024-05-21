@@ -5,11 +5,12 @@ Handles reading in Knowledge Graph and creates a dataloader for it.
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from collections import defaultdict
 
 
-def _get_true_head_and_tail(triples):
-    true_head = {}
-    true_tail = {}
+def get_true_head_and_tail(triples):
+    true_head = defaultdict(list)
+    true_tail = defaultdict(list)
 
     for head, relation, tail in triples:
         if (head, relation) not in true_tail:
@@ -63,7 +64,7 @@ class TrainDataLoader(Dataset):
         # self.triples_set = set(triples)
         self.num_entities = num_entities
         self.neg_sample_size = neg_sample_size
-        self.true_head, self.true_tail = _get_true_head_and_tail(self.triples)
+        self.true_head, self.true_tail = get_true_head_and_tail(self.triples)
 
     def __len__(self):
         return len(self.triples)
@@ -110,7 +111,7 @@ class TrainDataLoader(Dataset):
         #                                     replace=False)
 
 
-        print("in train")
+        # print("in train")
         negative_sample_list, negative_sample_size = [], 0
         while negative_sample_size < self.neg_sample_size:
             negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
@@ -157,7 +158,7 @@ class TestDataLoader(Dataset):
         self.triples = triples
         self.all_triples = set(all_triples)
         self.num_entities = num_entities
-        self.true_head, self.true_tail = _get_true_head_and_tail(self.all_triples)
+        # self.true_head, self.true_tail = get_true_head_and_tail(self.all_triples)
 
     def __len__(self):
         return len(self.triples)
@@ -199,7 +200,7 @@ class TestDataLoader(Dataset):
         # return positives, (heads, tails, filter_heads, filter_tails)
 
     def corrupt_sample(self, positive_sample, is_head):
-        print("in test")
+        # print("in test")
         # diff from train, return all entities as negative
         head, relation, tail = positive_sample
 
