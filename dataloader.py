@@ -2,7 +2,7 @@
 Handles reading in Knowledge Graph and creates a dataloader for it.
 """
 
-import numpy as np
+# import numpy as np
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
