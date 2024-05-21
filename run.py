@@ -63,7 +63,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             optimizer.step()
             optimizer.zero_grad()
 
-        print(f"Loss: {epoch_loss / num_samples}")
+        print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num samples: {num_samples}")
 
         if e % 5 == 0:
             train_losses.append(epoch_loss / num_samples)
