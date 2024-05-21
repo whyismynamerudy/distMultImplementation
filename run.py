@@ -21,7 +21,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
     model.train()
     optimizer.zero_grad()
 
-    train_losses = []
+    train_losses, val_losses = [], []
     val_mrr, val_hit_at_10 = [], []
 
     for e in range(num_epochs):
@@ -56,59 +56,59 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-            break
 
         print(f"Loss: {epoch_loss / num_samples}")
 
-        # if e % 5 == 0:
-        #     train_losses.append(epoch_loss / num_samples)
-        #     val_mrr_score, val_hit_score = validate(model, valid_dataloader)
-        #     val_mrr.append(val_mrr_score)
-        #     val_hit_at_10.append(val_hit_score)
-        #     print("MRR: {}, Hit@10: {}".format(val_mrr_score, val_hit_score))
+        if e % 5 == 0:
+            train_losses.append(epoch_loss / num_samples)
+            avg_loss, val_mrr_score, val_hit_score = validate(model, valid_dataloader)
+            val_mrr.append(val_mrr_score)
+            val_hit_at_10.append(val_hit_score)
+            print("MRR: {}, Hit@10: {}".format(val_mrr_score, val_hit_score))
 
-    return train_losses, val_mrr, val_hit_at_10
+    return train_losses, val_losses, val_mrr, val_hit_at_10
 
 
-# def validate(model, dataloader):
-#     model.eval()
-#     total_loss = 0
-#     num_samples = 0
-#
-#     mrr = 0
-#     hit_at_10 = 0
-#
-#     with torch.no_grad():
-#         for (positive, negatives) in tqdm(dataloader):
-#             positive.to(DEVICE)
-#             negatives[0].to(DEVICE)
-#             negatives[1].to(DEVICE)
-#             negatives[2].to(DEVICE)
-#             negatives[3].to(DEVICE)
-#
-#             true_score, head_pred_score, tail_pred_score = model((positive, negatives))
-#
-#             head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
-#             tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
-#
-#             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
-#             hit_at_10 += torch.sum(
-#                 torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
-#             num_samples += len(head_ranks)
-#
-#             loss = F.margin_ranking_loss(true_score,
-#                                          torch.mean(head_pred_score, 1),
-#                                          target=torch.ones_like(true_score),
-#                                          margin=1)
-#             loss += F.margin_ranking_loss(true_score,
-#                                           torch.mean(tail_pred_score, 1),
-#                                           target=torch.ones_like(true_score),
-#                                           margin=1)
-#             total_loss += loss.item()
-#
-#     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
-#
-#     return mrr, hit_at_10
+def validate(model, dataloader):
+    model.eval()
+    total_loss = 0
+    num_samples = 0
+
+    mrr = 0
+    hit_at_10 = 0
+
+    with torch.no_grad():
+        for (positive, negatives) in tqdm(dataloader):
+            positive.to(DEVICE)
+            negatives[0].to(DEVICE)
+            negatives[1].to(DEVICE)
+            negatives[2].to(DEVICE)
+            negatives[3].to(DEVICE)
+
+            true_score, head_pred_score, tail_pred_score = model((positive, negatives))
+
+            head_ranks = get_ranks(positive, negatives[0], true_score, head_pred_score, negatives[2], 0)
+            tail_ranks = get_ranks(positive, negatives[1], true_score, tail_pred_score, negatives[3], 2)
+
+            mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
+            hit_at_10 += torch.sum(
+                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
+            num_samples += len(head_ranks)
+
+            loss = F.margin_ranking_loss(true_score,
+                                         torch.mean(head_pred_score, 1),
+                                         target=torch.ones_like(true_score),
+                                         margin=1)
+            loss += F.margin_ranking_loss(true_score,
+                                          torch.mean(tail_pred_score, 1),
+                                          target=torch.ones_like(true_score),
+                                          margin=1)
+            total_loss += loss.item()
+
+    avg_loss = total_loss / num_samples
+    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+
+    return avg_loss, mrr, hit_at_10
 
 
 def test(model, test_loader):
@@ -137,10 +137,10 @@ def test(model, test_loader):
                 torch.where(head_ranks <= 10, torch.FloatTensor([1.0]), torch.FloatTensor([0.0])))
             num_samples += true_score.size(0)
 
-            if e < 10:
-                e += 1
-            else:
-                break
+            # if e < 10:
+            #     e += 1
+            # else:
+            #     break
 
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
 
@@ -243,7 +243,7 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                     model = DistMult(len(entities2id), len(relations2id), embed_dim).to(DEVICE)
                     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-                    train_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader,
+                    train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader,
                                                                              optimizer, num_epochs)
                     results = test(model, val_dataloader)
 
@@ -257,6 +257,7 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
                             'batch_train': batch_train,
                             'batch_test': batch_test,
                             'train_losses': train_losses,
+                            'val_losses': val_losses,
                             'val_mrr': val_mrr,
                             'val_hit_at_10': val_hit_at_10,
                         }
@@ -353,7 +354,7 @@ def main():
         }
         print("Running with: ", hyperparameters)
 
-        train_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer,
+        train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer,
                                                                  NUM_EPOCHS, LAMBDA_REG)
         mrr, hit_at_10 = test(model, val_dataloader)
 
@@ -366,6 +367,7 @@ def main():
                        'batch_train': BATCH_SIZE_TRAIN,
                        'batch_test': BATCH_SIZE_TEST,
                        'train_losses': train_losses,
+                       'val_losses': val_losses,
                        'val_mrr': val_mrr,
                        'val_hit_at_10': val_hit_at_10,
                    },
