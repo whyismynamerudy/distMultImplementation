@@ -5,13 +5,15 @@ Handles reading in Knowledge Graph and creates a dataloader for it.
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 def get_true_head_and_tail(triples):
     true_head = {}
     true_tail = {}
 
-    for head, relation, tail in triples:
+    print("Beginning loading true heads and tails: ")
+    for head, relation, tail in tqdm(triples):
         if (head, relation) not in true_tail:
             true_tail[(head, relation)] = []
         true_tail[(head, relation)].append(tail)
@@ -19,9 +21,9 @@ def get_true_head_and_tail(triples):
             true_head[(relation, tail)] = []
         true_head[(relation, tail)].append(head)
 
-    for relation, tail in true_head:
+    for relation, tail in tqdm(true_head):
         true_head[(relation, tail)] = np.array(list(set(true_head[(relation, tail)])))
-    for head, relation in true_tail:
+    for head, relation in tqdm(true_tail):
         true_tail[(head, relation)] = np.array(list(set(true_tail[(head, relation)])))
 
     print("Got true heads and tails.")
