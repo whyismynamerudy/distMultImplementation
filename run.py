@@ -129,8 +129,6 @@ def test(model, test_loader):
 
             true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
-            print(true_score.get_device(), head_pred_score.get_device())
-
             head_ranks = get_ranks(positive, negatives[0], true_score.to(DEVICE), head_pred_score.to(DEVICE), negatives[2], 0)
             tail_ranks = get_ranks(positive, negatives[1], true_score.to(DEVICE), tail_pred_score.to(DEVICE), negatives[3], 2)
 
@@ -153,8 +151,7 @@ def test(model, test_loader):
 
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
-    print(filter.get_device(), pred_score.get_device())
-    pred_score = torch.where(filter, pred_score, torch.IntTensor([torch.iinfo(torch.int32).min]).to(DEVICE)).to(DEVICE)
+    pred_score = torch.where(filter.to(DEVICE), pred_score, torch.IntTensor([torch.iinfo(torch.int32).min]).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score, pred_score), dim=1).to(DEVICE)
     all_samples = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1).to(DEVICE)
 
