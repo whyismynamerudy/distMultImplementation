@@ -282,6 +282,8 @@ def main():
     LAMBDA_REG = args.lambda_reg
     NEG_SAMPLE_SIZE = args.neg_sample_size
 
+    print("Beginning loading data...")
+
     entities2id, relations2id = load_dict('./data/FB15k-237/entities.dict'), load_dict(
         './data/FB15k-237/relations.dict')
     train_data, test_data, val_data = (load_triples('./data/FB15k-237/train.txt', entities2id, relations2id),
@@ -294,17 +296,25 @@ def main():
                                   batch_size=BATCH_SIZE_TRAIN,
                                   shuffle=True)
 
+    print("Loaded Train.")
+
     val_data = TestDataLoader(val_data, train_data+val_data+test_data, len(entities2id))
     val_dataloader = DataLoader(val_data,
                                 collate_fn=TestDataLoader.collate_fn,
                                 batch_size=BATCH_SIZE_TEST,
                                 shuffle=True)
 
+    print("Loaded Val.")
+
     test_data = TestDataLoader(test_data, train_data+val_data+test_data, len(entities2id))
     test_dataloader = DataLoader(test_data,
                                  collate_fn=TestDataLoader.collate_fn,
                                  batch_size=BATCH_SIZE_TEST,
                                  shuffle=True)
+
+    print("Loaded Test.")
+
+    print("Loaded all Data.")
 
     # if pretrained model provided, load it in directly and test
     if args.pretrained_model_path:

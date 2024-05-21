@@ -24,6 +24,7 @@ def get_true_head_and_tail(triples):
     for head, relation in true_tail:
         true_tail[(head, relation)] = np.array(list(set(true_tail[(head, relation)])))
 
+    print("Got true heads and tails.")
     return true_head, true_tail
 
 
