@@ -96,11 +96,11 @@ def validate(model, dataloader):
             num_samples += len(head_ranks)
 
             loss = F.margin_ranking_loss(true_score,
-                                         torch.mean(head_pred_score, 1),
+                                         head_pred_score,
                                          target=torch.ones_like(true_score),
                                          margin=1)
             loss += F.margin_ranking_loss(true_score,
-                                          torch.mean(tail_pred_score, 1),
+                                          tail_pred_score,
                                           target=torch.ones_like(true_score),
                                           margin=1)
             total_loss += loss.item()
