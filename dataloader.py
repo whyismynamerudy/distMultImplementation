@@ -98,43 +98,41 @@ class TrainDataLoader(Dataset):
 
     def corrupt_sample(self, positive_sample, is_head):
         head, relation, tail = positive_sample
-        # all_entities = np.arange(self.num_entities)  # -1?
-        #
-        # if is_head:
-        #     mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
-        # else:
-        #     mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
-        #
-        # negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
-        #
-        #
-        #                                     replace=False)
+        all_entities = np.arange(self.num_entities)  # -1?
+
+        if is_head:
+            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        else:
+            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+
+        negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
+                                            replace=False)
 
 
         # print("in train")
-        negative_sample_list, negative_sample_size = [], 0
-        while negative_sample_size < self.neg_sample_size:
-            negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
-            if is_head:
-                mask = np.isin(
-                    negative_sample,
-                    self.true_head[(relation, tail)],
-                    assume_unique=True,
-                    invert=True
-                )
-            else:
-                mask = np.isin(
-                    negative_sample,
-                    self.true_tail[(head, relation)],
-                    assume_unique=True,
-                    invert=True
-                )
-
-            negative_sample = negative_sample[mask]
-            negative_sample_list.append(negative_sample)
-            negative_sample_size += negative_sample.size
-
-        negative_samples = np.concatenate(negative_sample_list)[:self.neg_sample_size]
+        # negative_sample_list, negative_sample_size = [], 0
+        # while negative_sample_size < self.neg_sample_size:
+        #     negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
+        #     if is_head:
+        #         mask = np.isin(
+        #             negative_sample,
+        #             self.true_head[(relation, tail)],
+        #             assume_unique=True,
+        #             invert=True
+        #         )
+        #     else:
+        #         mask = np.isin(
+        #             negative_sample,
+        #             self.true_tail[(head, relation)],
+        #             assume_unique=True,
+        #             invert=True
+        #         )
+        #
+        #     negative_sample = negative_sample[mask]
+        #     negative_sample_list.append(negative_sample)
+        #     negative_sample_size += negative_sample.size
+        #
+        # negative_samples = np.concatenate(negative_sample_list)[:self.neg_sample_size]
 
         return negative_samples
 
@@ -158,7 +156,7 @@ class TestDataLoader(Dataset):
         self.triples = triples
         self.all_triples = set(all_triples)
         self.num_entities = num_entities
-        # self.true_head, self.true_tail = get_true_head_and_tail(self.all_triples)
+        self.true_head, self.true_tail = get_true_head_and_tail(self.all_triples)
 
     def __len__(self):
         return len(self.triples)
@@ -205,26 +203,28 @@ class TestDataLoader(Dataset):
         # diff from train, return all entities as negative
         head, relation, tail = positive_sample
 
-        if is_head:
-            tmp = [(0, rand_head) if (rand_head, relation, tail) not in self.all_triples
-                   else (-1, head) for rand_head in range(self.num_entities)]
-            tmp[head] = (0, head)
-        else:
-            tmp = [(0, rand_tail) if (head, relation, rand_tail) not in self.all_triples
-                   else (-1, tail) for rand_tail in range(self.num_entities)]
-            tmp[tail] = (0, tail)
-
-        tmp = torch.LongTensor(tmp)
-        filtr = tmp[:, 0].float()
-        negative = tmp[:, 1]
-
-        # all_entities = np.arange(self.num_entities)
-
         # if is_head:
-        #     np.delete(all_entities, head)
-        #     mask = np.in1d(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        #     tmp = [(0, rand_head) if (rand_head, relation, tail) not in self.all_triples
+        #            else (-1, head) for rand_head in range(self.num_entities)]
+        #     tmp[head] = (0, head)
         # else:
-        #     np.delete(all_entities, tail)
-        #     mask = np.in1d(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+        #     tmp = [(0, rand_tail) if (head, relation, rand_tail) not in self.all_triples
+        #            else (-1, tail) for rand_tail in range(self.num_entities)]
+        #     tmp[tail] = (0, tail)
+        #
+        # tmp = torch.LongTensor(tmp)
+        # filtr = tmp[:, 0].float()
+        # negative = tmp[:, 1]
 
-        return negative, filtr
+        all_entities = list(range(self.num_entities))
+
+        if is_head:
+            all_entities.pop(head)
+            all_entities = np.array(all_entities)
+            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        else:
+            all_entities.pop(tail)
+            all_entities = np.array(all_entities)
+            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+
+        return all_entities, mask
