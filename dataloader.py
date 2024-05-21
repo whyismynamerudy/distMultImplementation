@@ -99,11 +99,10 @@ class TrainDataLoader(Dataset):
         head, relation, tail = positive_sample
         all_entities = np.arange(self.num_entities)  # -1?
 
-        mask = None
         if is_head:
-            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+            mask = np.in1d(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
         else:
-            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+            mask = np.in1d(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
 
         negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
                                             replace=False)
@@ -178,9 +177,9 @@ class TestDataLoader(Dataset):
 
         if is_head:
             np.delete(all_entities, head)
-            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+            mask = np.in1d(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
         else:
             np.delete(all_entities, tail)
-            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+            mask = np.in1d(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
 
         return all_entities, mask
