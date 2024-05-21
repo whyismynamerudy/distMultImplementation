@@ -157,7 +157,7 @@ class TestDataLoader(Dataset):
         self.triples = triples
         self.all_triples = set(all_triples)
         self.num_entities = num_entities
-        self.true_head, self.true_tail = get_true_head_and_tail(self.all_triples)
+        self.true_head, self.true_tail = get_true_head_and_tail(all_triples)
 
     def __len__(self):
         return len(self.triples)
