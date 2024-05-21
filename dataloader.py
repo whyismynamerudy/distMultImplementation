@@ -105,8 +105,12 @@ class TrainDataLoader(Dataset):
         #     mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
         #
         # negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
+        #
+        #
         #                                     replace=False)
 
+
+        print("in train")
         negative_sample_list, negative_sample_size = [], 0
         while negative_sample_size < self.neg_sample_size:
             negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
@@ -195,6 +199,7 @@ class TestDataLoader(Dataset):
         # return positives, (heads, tails, filter_heads, filter_tails)
 
     def corrupt_sample(self, positive_sample, is_head):
+        print("in test")
         # diff from train, return all entities as negative
         head, relation, tail = positive_sample
 
