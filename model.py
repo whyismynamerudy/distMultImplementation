@@ -5,8 +5,6 @@ DistMult implementation.
 import torch
 import torch.nn as nn
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class DistMult(nn.Module):
     def __init__(self, num_entities, num_relations, embed_dim):
@@ -23,50 +21,33 @@ class DistMult(nn.Module):
         torch.nn.init.xavier_uniform_(self.entity_emb.weight)
         torch.nn.init.xavier_uniform_(self.relation_emb.weight)
 
-    def forward(self, sample, mode="train"):
-        # sample.to(DEVICE)
-        positive_sample, negative_samples = sample
+    def forward(self, sample, device):
+        positive_samples, negative_samples = sample
 
-        head, relation, tail = positive_sample[:, 0].to(DEVICE), positive_sample[:, 1].to(DEVICE), positive_sample[:, 2].to(DEVICE)  # each [B]
-        head_emb = self.entity_emb(head)
-        relation_emb = self.relation_emb(relation)
-        tail_emb = self.entity_emb(tail)
+        head, relation, tail = positive_samples[:, 0].to(device), positive_samples[:, 1].to(device), positive_samples[:, 2].to(device)  # each [N]
 
-        # print("relation and tail", relation.shape, tail.shape)
+        # each of shape [N, 1, d]
+        head_emb = self.entity_emb(head).unsqueeze(1)
+        relation_emb = self.relation_emb(relation).unsqueeze(1)
+        tail_emb = self.entity_emb(tail).unsqueeze(1)
 
-        true_score = self._get_score(head_emb, relation_emb, tail_emb)
+        positive_score = DistMult.get_score(head_emb, relation_emb, tail_emb)   # [N, 1]
 
-        negative_heads, negative_tails = (negative_samples[0].to(DEVICE), negative_samples[1].to(DEVICE))  # ensure it is a tuple
-        # print("neg head and neg tail", negative_heads.shape, negative_tails.shape)
+        # negative_samples = (neg_heads, neg_tails, (maybe) head_filter, (maybe) tail_filter)
+        # each negative_* of shape [N, num_neg_sample]
+        negative_heads, negative_tails = negative_samples[0].to(device), negative_samples[1].to(device)
 
-        if mode == "test":
-            # negative_heads, negative_tails of size [B, K]
-            neg_batch, neg_num_samples = negative_heads.shape
-            relation = relation.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
-            tail = tail.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
+        batch, neg_sample_size = negative_heads.size(0), negative_heads.size(1)
+        head = self.entity_emb(negative_heads.view(-1)).view(batch, neg_sample_size, -1)
+        negative_head_score = DistMult.get_score(head, relation_emb, tail_emb)
 
-            relation_emb = self.relation_emb(relation)
-            tail_emb = self.entity_emb(tail)
+        batch, neg_sample_size = negative_tails.size(0), negative_tails.size(1)
+        tail = self.entity_emb(negative_tails.view(-1)).view(batch, neg_sample_size, -1)
+        negative_tail_score = DistMult.get_score(head_emb, relation_emb, tail)
 
-            # print("neg relation and tail", relation.shape, tail.shape)
-            # print("neg relation emb and tail emb", relation_emb.shape, tail_emb.shape)
+        return positive_score, negative_head_score, negative_tail_score
 
-            head = self.entity_emb(negative_heads.view(neg_batch, neg_num_samples))
-            # print("head emb", head.shape)
-
-            tail = self.entity_emb(negative_tails.view(neg_batch, neg_num_samples))
-            # print("tail emb", tail.shape)
-
-        else:
-            # train mode, negative_heads and negative_tails of shape [B]
-            head = self.entity_emb(negative_heads.view(-1))
-            tail = self.entity_emb(negative_tails.view(-1))
-
-        head_pred_score = self._get_score(head, relation_emb, tail_emb)
-        tail_pred_score = self._get_score(head, relation_emb, tail)
-
-        return true_score, head_pred_score, tail_pred_score
-
-    def _get_score(self, head, relation, tail):
-        score = (head * relation * tail).sum(dim=-1)    # shape [B] or [B, K] depending on where it is called
+    @staticmethod
+    def get_score(head, relation, tail):
+        score = (head * relation * tail).sum(dim=2)
         return score

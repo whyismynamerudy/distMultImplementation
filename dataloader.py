@@ -2,8 +2,29 @@
 Handles reading in Knowledge Graph and creates a dataloader for it.
 """
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
+
+
+def _get_true_head_and_tail(triples):
+    true_head = {}
+    true_tail = {}
+
+    for head, relation, tail in triples:
+        if (head, relation) not in true_tail:
+            true_tail[(head, relation)] = []
+        true_tail[(head, relation)].append(tail)
+        if (relation, tail) not in true_head:
+            true_head[(relation, tail)] = []
+        true_head[(relation, tail)].append(head)
+
+    for relation, tail in true_head:
+        true_head[(relation, tail)] = np.array(list(set(true_head[(relation, tail)])))
+    for head, relation in true_tail:
+        true_tail[(head, relation)] = np.array(list(set(true_tail[(head, relation)])))
+
+    return true_head, true_tail
 
 
 def load_dict(dict_file):
@@ -37,90 +58,129 @@ def load_triples(txt_file, entity2id, relation2id):
 
 
 class TrainDataLoader(Dataset):
-    def __init__(self, triples, num_entities):
+    def __init__(self, triples, num_entities, neg_sample_size=128):
         self.triples = triples
-        self.triples_set = set(triples)
+        # self.triples_set = set(triples)
         self.num_entities = num_entities
+        self.neg_sample_size = neg_sample_size
+        self.true_head, self.true_tail = _get_true_head_and_tail(self.triples)
 
     def __len__(self):
         return len(self.triples)
 
     def __getitem__(self, idx):
         """
-        Return positive sample corresponding to idx with negative sample.
-
-        In the paper, they sample 2 negative triplets (one head, one tail) for each positive sample.
-
-        :param idx: Index of desired triplet.
-        :return: Tensors pos_sample [1, 3], neg_head [1], and neg_tail [1].
+        idx = index we want to retrieve
         """
-        positive_sample = self.triples[idx]  # positive sample
+        positive_sample = torch.LongTensor(self.triples[idx])  # positive sample, [3]
 
-        neg_head, neg_tail = list(positive_sample[:]), list(positive_sample[:])
-        random_head = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
-        random_tail = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
+        negative_head = torch.LongTensor(self.corrupt_sample(positive_sample, True))
+        negative_tail = torch.LongTensor(self.corrupt_sample(positive_sample, False))
 
-        neg_head[0] = random_head
-        while set(neg_head) in self.triples_set:
-            random_head = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
-            neg_head[0] = random_head
+        return positive_sample, (negative_head, negative_tail)
 
-        neg_tail[2] = random_tail
-        while set(neg_tail) in self.triples_set:
-            random_tail = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
-            neg_tail[2] = random_tail
+        # neg_head, neg_tail = list(positive_sample[:]), list(positive_sample[:])
+        # random_head = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
+        # random_tail = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
+        #
+        # neg_head[0] = random_head
+        # while set(neg_head) in self.triples_set:
+        #     random_head = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
+        #     neg_head[0] = random_head
+        #
+        # neg_tail[2] = random_tail
+        # while set(neg_tail) in self.triples_set:
+        #     random_tail = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
+        #     neg_tail[2] = random_tail
+        #
+        # return positive_sample, (random_head, random_tail)
 
-        return positive_sample, (random_head, random_tail)
+    def corrupt_sample(self, positive_sample, is_head):
+        head, relation, tail = positive_sample
+        all_entities = np.arange(self.num_entities)  # -1?
+
+        mask = None
+        if is_head:
+            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        else:
+            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+
+        negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
+                                            replace=False)
+
+        return negative_samples
 
     @staticmethod
     def collate_fn(batch):
-        # batch contains list of tuples (pos_sample, random_head, random_tail)
+        # batch contains list of tuples: [..., (positive_sample, (negative_head, negative_tail)),...]
 
-        pos_samples = [sample[0] for sample in batch]
-        neg_heads = [sample[1][0] for sample in batch]
-        neg_tails = [sample[1][1] for sample in batch]
+        positives, negatives = zip(*batch)
 
-        pos = torch.stack([torch.tensor(_) for _ in pos_samples])       # [N, 3]
-        neg_head = torch.stack([torch.tensor(_) for _ in neg_heads])    # [N]
-        neg_tail = torch.stack([torch.tensor(_) for _ in neg_tails])    # [N]
+        batched_positive = torch.stack(positives)  # [N, 3]
 
-        return pos, (neg_head, neg_tail)
+        # each batched_* below is of shape [N, num_negative_samples]
+        batched_negative_heads = torch.stack([neg[0] for neg in negatives])
+        batched_negative_tails = torch.stack([neg[1] for neg in negatives])
+
+        return [batched_positive, (batched_negative_heads, batched_negative_tails)]
 
 
 class TestDataLoader(Dataset):
-    def __init__(self, triples, num_entities):
+    def __init__(self, triples, all_triples, num_entities):
         self.triples = triples
-        self.triples_set = set(triples)
+        self.all_triples = all_triples
         self.num_entities = num_entities
+        self.true_head, self.true_tail = _get_true_head_and_tail(self.all_triples)
 
     def __len__(self):
         return len(self.triples)
 
     def __getitem__(self, idx):
-        # need to return stuff here s.t it can be used for evaluation
-        positive_sample = self.triples[idx] # [1, 3]
+        positive_sample = torch.LongTensor(self.triples[idx])  # [3]
 
-        head, relation, tail = positive_sample
+        negative_head, head_filter = self.corrupt_sample(positive_sample, True)  # [K]
+        negative_tail, tail_filter = self.corrupt_sample(positive_sample, False)  # [K]
 
-        neg_heads = [(1, test_head) if (test_head, relation, tail) not in self.triples_set else
-                     (0, test_head) for test_head in range(self.num_entities)]
-        neg_head = torch.tensor(neg_heads)
-
-        neg_tail = [(1, test_tail) if (head, relation, test_tail) not in self.triples_set else
-                    (0, test_tail) for test_tail in range(self.num_entities)]
-        neg_tail = torch.tensor(neg_tail)
-
-        filter_bias = (torch.tensor(neg_head[:, 0]), torch.tensor(neg_tail[:, 0]))      # ([K, 1], [K, 1])
-        neg_head, neg_tail = neg_head[:, 1], neg_tail[:, 1]     # [K, 1], [K, 1], K = num_entities
-
-        return torch.tensor(positive_sample), torch.tensor(neg_head), torch.tensor(neg_tail), filter_bias
+        return positive_sample, (torch.LongTensor(negative_head),
+                                 torch.LongTensor(negative_tail),
+                                 torch.BoolTensor(head_filter),
+                                 torch.BoolTensor(tail_filter))
 
     @staticmethod
     def collate_fn(batch):
-        positives = torch.stack([sample[0] for sample in batch])        # [N, 3]
-        heads = torch.stack([sample[1] for sample in batch])            # [N, K]
-        tails = torch.stack([sample[2] for sample in batch])            # [N, K]
-        filter_heads = torch.stack([sample[3][0] for sample in batch])  # [N, K]
-        filter_tails = torch.stack([sample[3][1] for sample in batch])  # [N, K]
+        positives, negatives = zip(*batch)
 
-        return positives, (heads, tails, filter_heads, filter_tails)
+        batched_positive = torch.stack(positives)  # [N, 3]
+
+        # each batched_* below is of shape [N, K]
+        batched_negative_heads = torch.stack([neg[0] for neg in negatives])
+        batched_negative_tails = torch.stack([neg[1] for neg in negatives])
+        batched_head_filter = torch.stack([neg[2] for neg in negatives])
+        batched_tail_filter = torch.stack([neg[3] for neg in negatives])
+
+        return [batched_positive, (batched_negative_heads,
+                                   batched_negative_tails,
+                                   batched_head_filter,
+                                   batched_tail_filter)]
+
+        # positives = torch.stack([sample[0] for sample in batch])  # [N, 3]
+        # heads = torch.stack([sample[1] for sample in batch])  # [N, K]
+        # tails = torch.stack([sample[2] for sample in batch])  # [N, K]
+        # filter_heads = torch.stack([sample[3][0] for sample in batch])  # [N, K]
+        # filter_tails = torch.stack([sample[3][1] for sample in batch])  # [N, K]
+        #
+        # return positives, (heads, tails, filter_heads, filter_tails)
+
+    def corrupt_sample(self, positive_sample, is_head):
+        # diff from train, return all entities as negative
+        head, relation, tail = positive_sample
+        all_entities = np.arange(self.num_entities)
+
+        if is_head:
+            np.delete(all_entities, head)
+            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        else:
+            np.delete(all_entities, tail)
+            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+
+        return all_entities, mask
