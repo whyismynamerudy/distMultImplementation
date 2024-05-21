@@ -83,6 +83,10 @@ class TrainDataLoader(Dataset):
         heads = torch.LongTensor(self.random_sampling(self, positive_sample, True))
         tails = torch.LongTensor(self.random_sampling(self, positive_sample, False))
 
+        print("positive", torch.LongTensor(positive_sample).shape)
+        print("heads", heads.shape)
+        print("tails", tails.shape)
+
         # neg_head, neg_tail = list(positive_sample[:]), list(positive_sample[:])
         # random_head = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
         # random_tail = int(torch.randint(low=0, high=self.num_entities, size=(1,)).flatten())
