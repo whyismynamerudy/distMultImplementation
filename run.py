@@ -194,6 +194,9 @@ def parse_arguments():
     parser.add_argument('--do_test', action='store_true', default=False,
                         help='Test the model on the test set after training')
 
+    parser.add_argument('--save_dir', type=str, default='models',
+                        help='Directory to save trained models (default: models)')
+
     parser.add_argument('--do_hyperparameter_search', action='store_true', help='Perform hyperparameter search')
 
     parser.add_argument('--pretrained_model_path', type=str, default='', help='Path to pretrained model')
