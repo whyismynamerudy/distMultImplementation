@@ -66,6 +66,8 @@ class TrainDataLoader(Dataset):
         self.neg_sample_size = neg_sample_size
         self.true_head, self.true_tail = get_true_head_and_tail(self.triples)
 
+        print(self.true_head)
+
     def __len__(self):
         return len(self.triples)
 
