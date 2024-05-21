@@ -9,8 +9,8 @@ from collections import defaultdict
 
 
 def get_true_head_and_tail(triples):
-    true_head = defaultdict(list)
-    true_tail = defaultdict(list)
+    true_head = {}
+    true_tail = {}
 
     for head, relation, tail in triples:
         if (head, relation) not in true_tail:
@@ -116,14 +116,14 @@ class TrainDataLoader(Dataset):
         while negative_sample_size < self.neg_sample_size:
             negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
             if is_head:
-                mask = np.in1d(
+                mask = np.isin(
                     negative_sample,
                     self.true_head[(relation, tail)],
                     assume_unique=True,
                     invert=True
                 )
             else:
-                mask = np.in1d(
+                mask = np.isin(
                     negative_sample,
                     self.true_tail[(head, relation)],
                     assume_unique=True,
