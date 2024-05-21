@@ -120,18 +120,18 @@ class TrainDataLoader(Dataset):
     @staticmethod
     def random_sampling(self, positive_sample, is_head=True):
         head, relation, tail = positive_sample
-        all_entities = torch.arange(0, self.num_entities, device=positive_sample.device)
+        all_entities = torch.arange(0, self.num_entities-1)
 
         if is_head:
-            true_entities = torch.tensor(self.true_head[(relation, tail)], device=positive_sample.device)
+            true_entities = torch.tensor(self.true_head[(relation, tail)])
         else:
-            true_entities = torch.tensor(self.true_tail[(head, relation)], device=positive_sample.device)
+            true_entities = torch.tensor(self.true_tail[(head, relation)])
 
         mask = torch.isin(all_entities, true_entities, invert=True)
 
         negative_sample_pool = all_entities[mask]
 
-        negative_samples = torch.randperm(len(negative_sample_pool), device=positive_sample.device)[
+        negative_samples = torch.randperm(len(negative_sample_pool))[
                            :self.negative_sample_size]
 
         return negative_sample_pool[negative_samples]
