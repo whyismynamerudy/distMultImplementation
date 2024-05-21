@@ -62,6 +62,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
         if e % 5 == 0:
             train_losses.append(epoch_loss / num_samples)
             avg_loss, val_mrr_score, val_hit_score = validate(model, valid_dataloader)
+            val_losses.append(avg_loss)
             val_mrr.append(val_mrr_score)
             val_hit_at_10.append(val_hit_score)
             print("MRR: {}, Hit@10: {}".format(val_mrr_score, val_hit_score))
