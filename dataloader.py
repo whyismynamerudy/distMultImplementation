@@ -5,7 +5,6 @@ Handles reading in Knowledge Graph and creates a dataloader for it.
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from collections import defaultdict
 
 
 def get_true_head_and_tail(triples):
@@ -66,8 +65,6 @@ class TrainDataLoader(Dataset):
         self.neg_sample_size = neg_sample_size
         self.true_head, self.true_tail = get_true_head_and_tail(self.triples)
 
-        print(self.true_head)
-
     def __len__(self):
         return len(self.triples)
 
@@ -75,11 +72,12 @@ class TrainDataLoader(Dataset):
         """
         idx = index we want to retrieve
         """
-        positive_sample = torch.LongTensor(self.triples[idx])  # positive sample, [3]
+        positive_sample = self.triples[idx]  # positive sample, [3]
 
         negative_head = torch.LongTensor(self.corrupt_sample(positive_sample, True))
         negative_tail = torch.LongTensor(self.corrupt_sample(positive_sample, False))
 
+        positive_sample = torch.LongTensor(positive_sample)
         return positive_sample, (negative_head, negative_tail)
 
         # neg_head, neg_tail = list(positive_sample[:]), list(positive_sample[:])
@@ -166,11 +164,12 @@ class TestDataLoader(Dataset):
         return len(self.triples)
 
     def __getitem__(self, idx):
-        positive_sample = torch.LongTensor(self.triples[idx])  # [3]
+        positive_sample = self.triples[idx]  # [3]
 
         negative_head, head_filter = self.corrupt_sample(positive_sample, True)  # [K]
         negative_tail, tail_filter = self.corrupt_sample(positive_sample, False)  # [K]
 
+        positive_sample = torch.LongTensor(positive_sample)
         return positive_sample, (torch.LongTensor(negative_head),
                                  torch.LongTensor(negative_tail),
                                  torch.BoolTensor(head_filter),
