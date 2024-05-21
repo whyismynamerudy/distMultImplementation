@@ -97,15 +97,39 @@ class TrainDataLoader(Dataset):
 
     def corrupt_sample(self, positive_sample, is_head):
         head, relation, tail = positive_sample
-        all_entities = np.arange(self.num_entities)  # -1?
+        # all_entities = np.arange(self.num_entities)  # -1?
+        #
+        # if is_head:
+        #     mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
+        # else:
+        #     mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+        #
+        # negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
+        #                                     replace=False)
 
-        if is_head:
-            mask = np.isin(all_entities, self.true_head[(relation, tail)], assume_unique=True, invert=True)
-        else:
-            mask = np.isin(all_entities, self.true_tail[(head, relation)], assume_unique=True, invert=True)
+        negative_sample_list, negative_sample_size = [], 0
+        while negative_sample_size < self.neg_sample_size:
+            negative_sample = np.random.randint(self.num_entities, size=self.neg_sample_size * 2)
+            if is_head:
+                mask = np.in1d(
+                    negative_sample,
+                    self.true_head[(relation, tail)],
+                    assume_unique=True,
+                    invert=True
+                )
+            else:
+                mask = np.in1d(
+                    negative_sample,
+                    self.true_tail[(head, relation)],
+                    assume_unique=True,
+                    invert=True
+                )
 
-        negative_samples = np.random.choice(all_entities[mask], size=min(len(all_entities[mask]), self.neg_sample_size),
-                                            replace=False)
+            negative_sample = negative_sample[mask]
+            negative_sample_list.append(negative_sample)
+            negative_sample_size += negative_sample.size
+
+        negative_samples = np.concatenate(negative_sample_list)[:self.neg_sample_size]
 
         return negative_samples
 
