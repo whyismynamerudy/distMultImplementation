@@ -56,6 +56,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
+            break
 
         print(f"Loss: {epoch_loss / num_samples}")
 
@@ -150,6 +151,7 @@ def test(model, test_loader):
 
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
+    print(filter.get_device(), pred_score.get_device())
     pred_score = torch.where(filter, pred_score, torch.IntTensor([torch.iinfo(torch.int32).min]).to(DEVICE)).to(DEVICE)
     scores = torch.cat((true_score, pred_score), dim=1).to(DEVICE)
     all_samples = torch.cat((positive_sample[:, pos_idx].unsqueeze(1), negative_samples), dim=1).to(DEVICE)
