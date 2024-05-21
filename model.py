@@ -39,28 +39,28 @@ class DistMult(nn.Module):
         negative_heads, negative_tails = (negative_samples[0].to(DEVICE), negative_samples[1].to(DEVICE))  # ensure it is a tuple
         # print("neg head and neg tail", negative_heads.shape, negative_tails.shape)
 
-        if mode == "test":
+        # if mode == "test":
             # negative_heads, negative_tails of size [B, K]
-            neg_batch, neg_num_samples = negative_heads.shape
-            relation = relation.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
-            tail = tail.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
+        neg_batch, neg_num_samples = negative_heads.shape
+        relation = relation.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
+        tail = tail.repeat(neg_num_samples, 1).view(neg_batch, neg_num_samples).to(DEVICE)
 
-            relation_emb = self.relation_emb(relation)
-            tail_emb = self.entity_emb(tail)
+        relation_emb = self.relation_emb(relation)
+        tail_emb = self.entity_emb(tail)
 
-            # print("neg relation and tail", relation.shape, tail.shape)
-            # print("neg relation emb and tail emb", relation_emb.shape, tail_emb.shape)
+        # print("neg relation and tail", relation.shape, tail.shape)
+        # print("neg relation emb and tail emb", relation_emb.shape, tail_emb.shape)
 
-            head = self.entity_emb(negative_heads.view(neg_batch, neg_num_samples))
-            # print("head emb", head.shape)
+        head = self.entity_emb(negative_heads.view(neg_batch, neg_num_samples))
+        # print("head emb", head.shape)
 
-            tail = self.entity_emb(negative_tails.view(neg_batch, neg_num_samples))
-            # print("tail emb", tail.shape)
+        tail = self.entity_emb(negative_tails.view(neg_batch, neg_num_samples))
+        # print("tail emb", tail.shape)
 
-        else:
-            # train mode, negative_heads and negative_tails of shape [B]
-            head = self.entity_emb(negative_heads.view(-1))
-            tail = self.entity_emb(negative_tails.view(-1))
+        # else:
+        #     # train mode, negative_heads and negative_tails of shape [B]
+        #     head = self.entity_emb(negative_heads.view(-1))
+        #     tail = self.entity_emb(negative_tails.view(-1))
 
         head_pred_score = self._get_score(head, relation_emb, tail_emb)
         tail_pred_score = self._get_score(head, relation_emb, tail)
