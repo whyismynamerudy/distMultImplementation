@@ -129,6 +129,8 @@ def test(model, test_loader):
 
             true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
+            print(true_score.get_device(), head_pred_score.get_device())
+
             head_ranks = get_ranks(positive, negatives[0], true_score.to(DEVICE), head_pred_score.to(DEVICE), negatives[2], 0)
             tail_ranks = get_ranks(positive, negatives[1], true_score.to(DEVICE), tail_pred_score.to(DEVICE), negatives[3], 2)
 
