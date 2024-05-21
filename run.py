@@ -134,7 +134,7 @@ def test(model, test_loader):
 
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(
-                torch.where(head_ranks <= 10, torch.FloatTensor([1.0]), torch.FloatTensor([0.0])))
+                torch.where(head_ranks <= 10, torch.FloatTensor([1.0]).to(DEVICE), torch.FloatTensor([0.0]).to(DEVICE)))
             num_samples += true_score.size(0)
 
             # if e < 10:
@@ -163,7 +163,7 @@ def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter,
         index = (sorted_samples[i, :] == positive_sample[i][pos_idx]).nonzero()
         ranking.append(index[0].item() + 1)
 
-    return torch.IntTensor(ranking)
+    return torch.IntTensor(ranking).to(DEVICE)
 
 
 def parse_arguments():
