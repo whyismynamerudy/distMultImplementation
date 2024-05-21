@@ -285,19 +285,19 @@ def main():
                                        load_triples('./data/FB15k-237/test.txt', entities2id, relations2id),
                                        load_triples('./data/FB15k-237/valid.txt', entities2id, relations2id))
 
-    train_data = TrainDataLoader(train_data, len(entities2id))
+    train_data = TrainDataLoader(train_data, len(entities2id), NEG_SAMPLE_SIZE)
     train_dataloader = DataLoader(train_data,
                                   collate_fn=TrainDataLoader.collate_fn,
                                   batch_size=BATCH_SIZE_TRAIN,
                                   shuffle=True)
 
-    val_data = TestDataLoader(val_data, len(entities2id))
+    val_data = TestDataLoader(val_data, train_data+val_data+test_data, len(entities2id))
     val_dataloader = DataLoader(val_data,
                                 collate_fn=TestDataLoader.collate_fn,
                                 batch_size=BATCH_SIZE_TEST,
                                 shuffle=True)
 
-    test_data = TestDataLoader(test_data, len(entities2id))
+    test_data = TestDataLoader(test_data, train_data+val_data+test_data, len(entities2id))
     test_dataloader = DataLoader(test_data,
                                  collate_fn=TestDataLoader.collate_fn,
                                  batch_size=BATCH_SIZE_TEST,
