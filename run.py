@@ -96,13 +96,13 @@ def validate(model, dataloader, device):
                 torch.where(head_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device)))
             num_samples += len(head_ranks)
 
-            loss = F.margin_ranking_loss(true_score,
+            loss = F.margin_ranking_loss(true_score.reshape_as(head_pred_score),
                                          head_pred_score,
-                                         target=torch.ones_like(true_score),
+                                         target=torch.ones_like(true_score.reshape_as(head_pred_score)),
                                          margin=1)
-            loss += F.margin_ranking_loss(true_score,
+            loss += F.margin_ranking_loss(true_score.reshape_as(tail_pred_score),
                                           tail_pred_score,
-                                          target=torch.ones_like(true_score),
+                                          target=torch.ones_like(true_score.reshape_as(tail_pred_score)),
                                           margin=1)
             total_loss += loss.item()
 
