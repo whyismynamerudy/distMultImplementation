@@ -38,12 +38,12 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, devi
             true_score, head_pred_score, tail_pred_score = model((positive, negatives))
 
             loss = F.margin_ranking_loss(true_score,
-                                         head_pred_score,
+                                         torch.mean(head_pred_score, 1),
                                          target=torch.ones_like(true_score),
                                          margin=1)
 
             loss += F.margin_ranking_loss(true_score,
-                                          tail_pred_score,
+                                          torch.mean(tail_pred_score, 1),
                                           target=torch.ones_like(true_score),
                                           margin=1)
 
