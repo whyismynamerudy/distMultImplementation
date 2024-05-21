@@ -4,7 +4,7 @@ Handles reading in Knowledge Graph and creates a dataloader for it.
 
 import torch
 from torch.utils.data import Dataset
-import numpy as np
+# import numpy as np
 
 
 # from https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding/blob/master/codes/dataloader.py#L96
@@ -21,9 +21,9 @@ def _get_true_head_and_tail(triples):
         true_head[(relation, tail)].append(head)
 
     for relation, tail in true_head:
-        true_head[(relation, tail)] = np.array(list(set(true_head[(relation, tail)])))
+        true_head[(relation, tail)] = torch.as_tensor(list(set(true_head[(relation, tail)])))
     for head, relation in true_tail:
-        true_tail[(head, relation)] = np.array(list(set(true_tail[(head, relation)])))
+        true_tail[(head, relation)] = torch.as_tensor(list(set(true_tail[(head, relation)])))
 
     return true_head, true_tail
 
@@ -118,34 +118,49 @@ class TrainDataLoader(Dataset):
         return pos, (neg_head, neg_tail)
 
     @staticmethod
-    def random_sampling(self, positive_sample, head=True):
+    def random_sampling(self, positive_sample, is_head=True):
         head, relation, tail = positive_sample
-        all_entities = np.arange(0, self.num_entities - 1)
+        all_entities = torch.arange(0, self.num_entities, device=positive_sample.device)
 
-        if head:
-            mask = np.isin(
-                all_entities,
-                self.true_head[(relation, tail)],
-                assume_unique=True,
-                invert=True
-            )
+        if is_head:
+            true_entities = torch.tensor(self.true_head[(relation, tail)], device=positive_sample.device)
         else:
-            mask = np.isin(
-                all_entities,
-                self.true_tail[(head, relation)],
-                assume_unique=True,
-                invert=True
-            )
+            true_entities = torch.tensor(self.true_tail[(head, relation)], device=positive_sample.device)
+
+        mask = torch.isin(all_entities, true_entities, invert=True)
 
         negative_sample_pool = all_entities[mask]
 
-        negative_samples = np.random.choice(
-            negative_sample_pool,
-            size=min(len(negative_sample_pool), self.negative_sample_size),
-            replace=False
-        )
+        negative_samples = torch.randperm(len(negative_sample_pool), device=positive_sample.device)[
+                           :self.negative_sample_size]
 
-        return negative_samples
+        return negative_sample_pool[negative_samples]
+        # all_entities = torch.arange(0, self.num_entities - 1)
+        #
+        # if is_head:
+        #     mask = np.isin(
+        #         all_entities,
+        #         self.true_head[(relation, tail)],
+        #         assume_unique=True,
+        #         invert=True
+        #     )
+        # else:
+        #     mask = np.isin(
+        #         all_entities,
+        #         self.true_tail[(head, relation)],
+        #         assume_unique=True,
+        #         invert=True
+        #     )
+        #
+        # negative_sample_pool = all_entities[mask]
+        #
+        # negative_samples = np.random.choice(
+        #     negative_sample_pool,
+        #     size=min(len(negative_sample_pool), self.negative_sample_size),
+        #     replace=False
+        # )
+        #
+        # return negative_samples
 
 
 class TestDataLoader(Dataset):
