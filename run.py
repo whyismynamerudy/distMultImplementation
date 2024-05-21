@@ -11,7 +11,7 @@ from dataloader import *
 from model import DistMult
 import datetime
 
-DEVICE = torch.DEVICE("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONSTANT_DATETIME = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
