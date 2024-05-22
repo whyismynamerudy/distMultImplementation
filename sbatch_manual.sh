@@ -2,12 +2,12 @@
 #SBATCH --partition=ashton
 #SBACTH --qos=ashton
 #SBATCH --job-name=mongarud-manual
-#SBATCH --output=main-implementation/output_%j.log      # Standard output and error log
-#SBATCH --time=24:00:00
+#SBATCH --output=new-implementation/output_%j.log      # Standard output and error log
+#SBATCH --time=12:00:00
 #SBATCH --mem=4G
 #SBATCH --gres=gpu:1
 
-mkdir -p main-implementation
+mkdir -p new-implementation
 
 conda activate distmult
-python3 run.py --embed_dim 512 --batch_size_train 300 --batch_size_test 150 --num_epochs 150 --lr 1e-5 --weight_decay 1e-6
+python3 run.py --embed_dim 500 --batch_size_train 300 --batch_size_test 150 --num_epochs 10 --lr 5e-4 --weight_decay 0.00001 --neg_sample_size 128
