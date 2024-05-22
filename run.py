@@ -353,7 +353,7 @@ def main():
             return
 
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
-        model.load_state_dict(torch.load(args.pretrained_model_path))
+        model.load_state_dict(torch.load(args.pretrained_model_path, map_location=DEVICE))
         _, mrr, hit = validate(model, test_dataloader)
         print("MRR: {}, Hit: {}".format(mrr, hit))
         return
