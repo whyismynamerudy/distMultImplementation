@@ -95,7 +95,8 @@ def validate(model, dataloader, device):
 
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(
-                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device)))
+                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device))) + torch.sum(
+                torch.where(tail_ranks <= 10, torch.tensor([1.0]).to(device), torch.tensor([0.0]).to(device)))
             num_samples += len(head_ranks)
 
             loss = F.margin_ranking_loss(true_score,
@@ -110,7 +111,7 @@ def validate(model, dataloader, device):
                                           reduction='sum')
             total_loss += loss.item()
 
-    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / (2*num_samples)
     avg_loss = total_loss / num_samples
 
     return avg_loss, mrr, hit_at_10
