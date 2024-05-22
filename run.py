@@ -45,11 +45,13 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             loss = (F.margin_ranking_loss(true_score,
                                           head_pred_score,
                                           target=torch.ones_like(true_score),
-                                          margin=1) +
+                                          margin=1,
+                                          reduction='sum') +
                     F.margin_ranking_loss(true_score,
                                           tail_pred_score,
                                           target=torch.ones_like(true_score),
-                                          margin=1))
+                                          margin=1,
+                                          reduction='sum'))
 
             reg = lambda_reg * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
@@ -58,7 +60,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             optimizer.step()
 
             epoch_loss += total_loss.item()
-            num_samples += 1
+            num_samples += positive.size(0)
 
         print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num batches: {num_samples}")
 
@@ -78,12 +80,9 @@ def validate(model, dataloader):
     model.eval()
     total_loss = 0
     num_samples = 0
-    num_batches = 0
 
     mrr = 0
     hit_at_10 = 0
-
-    printed = False
 
     with torch.no_grad():
         for (positive, negatives) in tqdm(dataloader):
@@ -104,26 +103,28 @@ def validate(model, dataloader):
                 torch.where(tail_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
 
             num_samples += positive.size(0)
-            num_batches += 1
+            # num_batches += 1
 
-            if not printed:
-                printed = True
-                print(num_samples)
-                print(positive.size(0))
+            # if not printed:
+            #     printed = True
+            #     print(num_samples)
+            #     print(positive.size(0))
 
             # loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
 
             loss = F.margin_ranking_loss(true_score,
                                          head_pred_score,
                                          target=torch.ones_like(true_score),
-                                         margin=1)
+                                         margin=1,
+                                         reduction='sum')
             loss += F.margin_ranking_loss(true_score,
                                           tail_pred_score,
                                           target=torch.ones_like(true_score),
-                                          margin=1)
+                                          margin=1,
+                                          reduction='sum')
             total_loss += loss.item()
 
-    avg_loss = total_loss / num_batches
+    avg_loss = total_loss / num_samples
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / (2*num_samples)
 
     return avg_loss, mrr, hit_at_10
