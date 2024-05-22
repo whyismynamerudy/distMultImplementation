@@ -8,4 +8,4 @@
 #SBATCH --gres=gpu:1
 
 conda activate distmult
-python3 run.py --embed_dim 750 --batch_size_train 300 --batch_size_test 150 --num_epochs 200 --lr 5e-4 --weight_decay 1e-3
+python3 run.py --embed_dim 512 --batch_size_train 300 --batch_size_test 150 --num_epochs 10 --lr 1e-3 --weight_decay 1e-7

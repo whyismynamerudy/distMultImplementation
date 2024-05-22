@@ -40,12 +40,14 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, devi
             loss = F.margin_ranking_loss(true_score,
                                          head_pred_score,
                                          target=torch.ones_like(true_score),
-                                         margin=1)
+                                         margin=1,
+                                         reduction='sum')
 
             loss += F.margin_ranking_loss(true_score,
                                           tail_pred_score,
                                           target=torch.ones_like(true_score),
-                                          margin=1)
+                                          margin=1,
+                                          reduction='sum')
 
             loss += 0.0001 * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
@@ -99,11 +101,13 @@ def validate(model, dataloader, device):
             loss = F.margin_ranking_loss(true_score,
                                          torch.mean(head_pred_score, 1),
                                          target=torch.ones_like(true_score),
-                                         margin=1)
+                                         margin=1,
+                                         reduction='sum')
             loss += F.margin_ranking_loss(true_score,
                                           torch.mean(tail_pred_score, 1),
                                           target=torch.ones_like(true_score),
-                                          margin=1)
+                                          margin=1,
+                                          reduction='sum')
             total_loss += loss.item()
 
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
