@@ -10,4 +10,4 @@
 mkdir -p new-implementation
 
 conda activate distmult
-python3 run.py --embed_dim 500 --batch_size_train 300 --batch_size_test 150 --num_epochs 125 --lr 5e-4 --weight_decay 0.0001 --neg_sample_size 128
+python3 run.py --embed_dim 500 --batch_size_train 300 --batch_size_test 150 --num_epochs 125 --lr 5e-4 --weight_decay 0.00001 --neg_sample_size 128
