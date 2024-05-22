@@ -377,6 +377,7 @@ def main():
         train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer,
                                                                  NUM_EPOCHS, LAMBDA_REG)
         _, mrr, hit_at_10 = validate(model, val_dataloader)
+        print("MRR: {}, Hit: {}".format(mrr, hit_at_10))
 
         save_model(model, args.save_dir, (mrr, hit_at_10),
                    {
