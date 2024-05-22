@@ -40,30 +40,30 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
 
             true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
-            loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
+            # loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
 
-            # loss = (F.margin_ranking_loss(true_score,
-            #                               head_pred_score,
-            #                               target=torch.ones_like(true_score),
-            #                               margin=1) +
-            #         F.margin_ranking_loss(true_score,
-            #                               tail_pred_score,
-            #                               target=torch.ones_like(true_score),
-            #                               margin=1))
+            loss = (F.margin_ranking_loss(true_score,
+                                          head_pred_score,
+                                          target=torch.ones_like(true_score),
+                                          margin=1) +
+                    F.margin_ranking_loss(true_score,
+                                          tail_pred_score,
+                                          target=torch.ones_like(true_score),
+                                          margin=1))
 
             reg = lambda_reg * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
             batch_size = true_score.size(0)
             epoch_loss += loss
-            num_samples += batch_size
+            num_samples += 1
 
-            loss = loss / batch_size + reg
+            loss += reg
 
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-        print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num samples: {num_samples}")
+        print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num batches: {num_samples}")
 
         if e % 5 == 0:
             train_losses.append(epoch_loss / num_samples)
@@ -100,18 +100,18 @@ def validate(model, dataloader):
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(
                 torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
-            num_samples += len(head_ranks)
+            num_samples += 1
 
-            loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
+            # loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
 
-            # loss = F.margin_ranking_loss(true_score,
-            #                              head_pred_score,
-            #                              target=torch.ones_like(true_score),
-            #                              margin=1)
-            # loss += F.margin_ranking_loss(true_score,
-            #                               tail_pred_score,
-            #                               target=torch.ones_like(true_score),
-            #                               margin=1)
+            loss = F.margin_ranking_loss(true_score,
+                                         head_pred_score,
+                                         target=torch.ones_like(true_score),
+                                         margin=1)
+            loss += F.margin_ranking_loss(true_score,
+                                          tail_pred_score,
+                                          target=torch.ones_like(true_score),
+                                          margin=1)
             total_loss += loss
 
     avg_loss = total_loss / num_samples
