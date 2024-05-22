@@ -55,14 +55,14 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
 
             reg = lambda_reg * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
-            total_loss = loss + reg
+            total_loss = (loss / positive.size(0)) + reg
             total_loss.backward()
             optimizer.step()
 
-            epoch_loss += total_loss.item()
+            epoch_loss += loss.item() + reg
             num_samples += positive.size(0)
 
-        print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num batches: {num_samples}")
+        print(f"Loss: {epoch_loss / 2*num_samples}, Epoch Loss: {epoch_loss}, Num batches: {num_samples}")
 
         if e % 5 == 0:
             model.eval()
@@ -124,7 +124,7 @@ def validate(model, dataloader):
                                           reduction='sum')
             total_loss += loss.item()
 
-    avg_loss = total_loss / num_samples
+    avg_loss = total_loss / (2*num_samples)
     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / (2*num_samples)
 
     return avg_loss, mrr, hit_at_10
