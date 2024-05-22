@@ -49,7 +49,7 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, devi
                                           margin=1,
                                           reduction='sum')
 
-            loss += 0.0001 * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
+            loss += 0.001 * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
             epoch_loss += loss.item()
             num_samples += len(positive)
