@@ -21,14 +21,14 @@ def model_loss(true_score, pred_score):
 
 # include loss for validation interval / epoch within the range and include those as well
 # include validation MRR, HIT@10 as well during interval
-def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lambda_reg):
-    model.train()
-    optimizer.zero_grad()
+def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lambda_reg=1e-3):
+    model.train().to(DEVICE)
 
     train_losses, val_losses = [], []
     val_mrr, val_hit_at_10 = [], []
 
     for e in range(num_epochs):
+        model.train()
         epoch_loss = 0
         num_samples = 0
         print("Epoch [{}/{}]".format(e + 1, num_epochs))
@@ -38,9 +38,9 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
             negatives[0].to(DEVICE)
             negatives[1].to(DEVICE)
 
-            true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
+            optimizer.zero_grad()
 
-            # loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
+            true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
 
             loss = (F.margin_ranking_loss(true_score,
                                           head_pred_score,
@@ -53,19 +53,17 @@ def train(model, train_dataloader, valid_dataloader, optimizer, num_epochs, lamb
 
             reg = lambda_reg * (model.entity_emb.weight.norm(p=2) + model.relation_emb.weight.norm(p=2))
 
-            batch_size = true_score.size(0)
-            epoch_loss += loss
-            num_samples += 1
-
-            loss += reg
-
-            loss.backward()
+            total_loss = loss + reg
+            total_loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
+
+            epoch_loss += total_loss.item()
+            num_samples += 1
 
         print(f"Loss: {epoch_loss / num_samples}, Epoch Loss: {epoch_loss}, Num batches: {num_samples}")
 
         if e % 5 == 0:
+            model.eval()
             train_losses.append(epoch_loss / num_samples)
             avg_loss, val_mrr_score, val_hit_score = validate(model, valid_dataloader)
             val_losses.append(avg_loss)
@@ -80,9 +78,12 @@ def validate(model, dataloader):
     model.eval()
     total_loss = 0
     num_samples = 0
+    num_batches = 0
 
     mrr = 0
     hit_at_10 = 0
+
+    printed = False
 
     with torch.no_grad():
         for (positive, negatives) in tqdm(dataloader):
@@ -99,8 +100,16 @@ def validate(model, dataloader):
 
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(
-                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
-            num_samples += 1
+                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)),
+                torch.where(tail_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
+
+            num_samples += positive.size(0)
+            num_batches += 1
+
+            if not printed:
+                printed = True
+                print(num_samples)
+                print(positive.size(0))
 
             # loss = model_loss(true_score, head_pred_score) + model_loss(true_score, tail_pred_score)
 
@@ -112,51 +121,51 @@ def validate(model, dataloader):
                                           tail_pred_score,
                                           target=torch.ones_like(true_score),
                                           margin=1)
-            total_loss += loss
+            total_loss += loss.item()
 
-    avg_loss = total_loss / num_samples
-    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+    avg_loss = total_loss / num_batches
+    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / (2*num_samples)
 
     return avg_loss, mrr, hit_at_10
 
 
-def test(model, test_loader):
-    model.eval()
-
-    mrr = 0
-    hit_at_10 = 0
-    num_samples = 0
-
-    with torch.no_grad():
-        e = 0
-        for (positive, negatives) in tqdm(test_loader):
-            positive.to(DEVICE)
-            negatives[0].to(DEVICE)  # heads
-            negatives[1].to(DEVICE)  # tails
-            negatives[2].to(DEVICE)  # filter heads
-            negatives[3].to(DEVICE)  # filter tails
-
-            true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
-
-            head_ranks = get_ranks(positive, negatives[0], true_score.to(DEVICE), head_pred_score.to(DEVICE), negatives[2], 0)
-            tail_ranks = get_ranks(positive, negatives[1], true_score.to(DEVICE), tail_pred_score.to(DEVICE), negatives[3], 2)
-
-            mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
-            hit_at_10 += torch.sum(
-                torch.where(head_ranks <= 10, torch.FloatTensor([1.0]).to(DEVICE), torch.FloatTensor([0.0]).to(DEVICE)))
-            num_samples += true_score.size(0)
-
-            # if e < 10:
-            #     e += 1
-            # else:
-            #     break
-
-    mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
-
-    print("MRR: ", mrr)
-    print("HIT@10: ", hit_at_10)
-
-    return mrr, hit_at_10
+# def test(model, test_loader):
+#     model.eval()
+#
+#     mrr = 0
+#     hit_at_10 = 0
+#     num_samples = 0
+#
+#     with torch.no_grad():
+#         e = 0
+#         for (positive, negatives) in tqdm(test_loader):
+#             positive.to(DEVICE)
+#             negatives[0].to(DEVICE)  # heads
+#             negatives[1].to(DEVICE)  # tails
+#             negatives[2].to(DEVICE)  # filter heads
+#             negatives[3].to(DEVICE)  # filter tails
+#
+#             true_score, head_pred_score, tail_pred_score = model((positive, negatives), DEVICE)
+#
+#             head_ranks = get_ranks(positive, negatives[0], true_score.to(DEVICE), head_pred_score.to(DEVICE), negatives[2], 0)
+#             tail_ranks = get_ranks(positive, negatives[1], true_score.to(DEVICE), tail_pred_score.to(DEVICE), negatives[3], 2)
+#
+#             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
+#             hit_at_10 += torch.sum(
+#                 torch.where(head_ranks <= 10, torch.FloatTensor([1.0]).to(DEVICE), torch.FloatTensor([0.0]).to(DEVICE)))
+#             num_samples += true_score.size(0)
+#
+#             # if e < 10:
+#             #     e += 1
+#             # else:
+#             #     break
+#
+#     mrr, hit_at_10 = mrr / num_samples, hit_at_10 / num_samples
+#
+#     print("MRR: ", mrr)
+#     print("HIT@10: ", hit_at_10)
+#
+#     return mrr, hit_at_10
 
 
 def get_ranks(positive_sample, negative_samples, true_score, pred_score, filter, pos_idx):
@@ -254,7 +263,7 @@ def hyperparameter_search(train_dataloader, val_dataloader, entities2id, relatio
 
                     train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader,
                                                                              optimizer, num_epochs)
-                    results = test(model, val_dataloader)
+                    results = validate(model, val_dataloader)
 
                     if results[mrr_or_hit] > best_result:
                         best_result = results[mrr_or_hit]
@@ -336,7 +345,8 @@ def main():
 
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM)
         model.load_state_dict(torch.load(args.pretrained_model_path))
-        test(model, test_dataloader)
+        _, mrr, hit = validate(model, test_dataloader)
+        print("MRR: {}, Hit: {}".format(mrr, hit))
         return
 
     if args.do_hyperparameter_search:
@@ -345,7 +355,8 @@ def main():
                                                                  BATCH_SIZE_TEST, 0)
 
         if args.do_test:
-            test(best_model, test_dataloader)
+            _, mrr, hit = validate(best_model, test_dataloader)
+            print("MRR: {}, Hit: {}".format(mrr, hit))
 
     else:
         model = DistMult(len(entities2id), len(relations2id), EMBED_DIM).to(DEVICE)
@@ -365,7 +376,7 @@ def main():
 
         train_losses, val_losses, val_mrr, val_hit_at_10 = train(model, train_dataloader, val_dataloader, optimizer,
                                                                  NUM_EPOCHS, LAMBDA_REG)
-        mrr, hit_at_10 = test(model, val_dataloader)
+        _, mrr, hit_at_10 = validate(model, val_dataloader)
 
         save_model(model, args.save_dir, (mrr, hit_at_10),
                    {
@@ -383,7 +394,8 @@ def main():
                    "model.pth")
 
         if args.do_test:
-            test(model, test_dataloader)
+            _, mrr, hit = validate(model, test_dataloader)
+            print("MRR: {}, Hit: {}".format(mrr, hit))
 
 
 if __name__ == '__main__':
