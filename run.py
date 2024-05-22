@@ -100,7 +100,7 @@ def validate(model, dataloader):
 
             mrr += (torch.sum(1.0 / head_ranks) + torch.sum(1.0 / tail_ranks)) / 2
             hit_at_10 += torch.sum(
-                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)),
+                torch.where(head_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE))) + torch.sum(
                 torch.where(tail_ranks <= 10, torch.tensor([1.0]).to(DEVICE), torch.tensor([0.0]).to(DEVICE)))
 
             num_samples += positive.size(0)
